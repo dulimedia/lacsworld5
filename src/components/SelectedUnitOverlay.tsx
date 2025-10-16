@@ -23,8 +23,6 @@ export const SelectedUnitOverlay: React.FC = () => {
   const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
   const lastCameraPositionRef = useRef<THREE.Vector3>(new THREE.Vector3());
   const needsOcclusionUpdateRef = useRef<boolean>(false);
-  const previousHighlightKeyRef = useRef<string>('');
-  const fadeInDuration = 500;
   
   // Function to detect occlusion between camera and unit
   const detectOcclusion = (unitObject: THREE.Group): number => {
@@ -122,13 +120,6 @@ export const SelectedUnitOverlay: React.FC = () => {
         overlayMesh.renderOrder = 999;
         overlayMesh.userData.isHighlightOverlay = true;
         overlayMesh.userData.occlusionFactor = occlusionFactor;
-        overlayMesh.userData.createdAt = Date.now();
-        overlayMesh.userData.targetOpacity = GHOST_MATERIAL_CONFIG.opacity * occlusionFactor;
-        
-        // Start with opacity at 0 for fade-in animation
-        if (adjustedMaterial.uniforms && adjustedMaterial.uniforms.uOpacity) {
-          adjustedMaterial.uniforms.uOpacity.value = 0;
-        }
         
         overlayMeshes.push(overlayMesh);
       }
@@ -189,33 +180,9 @@ export const SelectedUnitOverlay: React.FC = () => {
     });
   };
 
-  // Detect camera movement and trigger occlusion updates + handle fade-in animation
+  // Detect camera movement and trigger occlusion updates
   useFrame(() => {
     if (!camera) return;
-    
-    const currentTime = Date.now();
-    
-    // Handle fade-in animation for new overlays
-    overlayMeshesRef.current.forEach(mesh => {
-      if (mesh.userData.createdAt && mesh.userData.targetOpacity !== undefined) {
-        const elapsed = currentTime - mesh.userData.createdAt;
-        const progress = Math.min(elapsed / fadeInDuration, 1.0);
-        
-        if (progress < 1.0) {
-          // Smooth fade-in using easeOutCubic
-          const eased = 1 - Math.pow(1 - progress, 3);
-          if (mesh.material && 'uniforms' in mesh.material && mesh.material.uniforms.uOpacity) {
-            mesh.material.uniforms.uOpacity.value = mesh.userData.targetOpacity * eased;
-          }
-        } else {
-          // Animation complete - set to target opacity and clean up animation data
-          if (mesh.material && 'uniforms' in mesh.material && mesh.material.uniforms.uOpacity) {
-            mesh.material.uniforms.uOpacity.value = mesh.userData.targetOpacity;
-          }
-          delete mesh.userData.createdAt;
-        }
-      }
-    });
     
     const currentPosition = camera.position.clone();
     const threshold = 0.1; // Minimum movement threshold to trigger update
@@ -235,27 +202,6 @@ export const SelectedUnitOverlay: React.FC = () => {
   // Update overlay when selection changes
   useEffect(() => {
     if (!overlayGroupRef.current) return;
-    
-    // Create a unique key for the current highlight state
-    let currentHighlightKey = '';
-    if (hoveredFloor) {
-      currentHighlightKey = `floor-${hoveredFloor.building}-${hoveredFloor.floor}`;
-    } else if (hoveredUnit) {
-      currentHighlightKey = `unit-${hoveredUnit}`;
-    } else if (selectedUnit && selectedBuilding && selectedFloor !== null && selectedFloor !== undefined) {
-      currentHighlightKey = `unit-${selectedBuilding}-${selectedFloor}-${selectedUnit}`;
-    } else if (selectedFloor !== null && selectedFloor !== undefined && selectedBuilding) {
-      currentHighlightKey = `floor-${selectedBuilding}-${selectedFloor}`;
-    } else if (selectedBuilding) {
-      currentHighlightKey = `building-${selectedBuilding}`;
-    }
-    
-    // If highlighting the same thing, don't reset
-    if (currentHighlightKey && currentHighlightKey === previousHighlightKeyRef.current) {
-      return;
-    }
-    
-    previousHighlightKeyRef.current = currentHighlightKey;
     
     // Clear existing overlay meshes
     overlayMeshesRef.current.forEach(mesh => {

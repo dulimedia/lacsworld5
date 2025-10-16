@@ -64,7 +64,7 @@ const GLBUnit: React.FC<GLBUnitProps> = ({ node }) => {
 
   // Original materials storage removed - units are always hidden
 
-  // Unit clicking disabled - selection only through Explore Units panel
+  // Suite clicking disabled - selection only through Explore Suites panel
   // const handleClick = (event: any) => {
   //   event.stopPropagation();
   //   console.log(`🖱️ GLB Unit clicked: ${node.building}/${node.floor}/${node.unitName}`);

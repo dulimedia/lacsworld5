@@ -4,8 +4,6 @@ import { useCsvUnitData } from '../hooks/useCsvUnitData';
 import { detectDevice } from '../utils/deviceDetection';
 
 const UnitRequestForm = ({ isOpen, onClose }) => {
-  const [shouldRender, setShouldRender] = useState(false);
-  const [isAnimating, setIsAnimating] = useState(false);
   const [selectedUnits, setSelectedUnits] = useState(new Set());
   const [message, setMessage] = useState('');
   const [senderName, setSenderName] = useState('');
@@ -13,23 +11,6 @@ const UnitRequestForm = ({ isOpen, onClose }) => {
   const [senderPhone, setSenderPhone] = useState('');
   const [expandedBuildings, setExpandedBuildings] = useState(new Set());
   const [isSending, setIsSending] = useState(false);
-
-  // Handle mounting and animation timing
-  React.useEffect(() => {
-    if (isOpen) {
-      setShouldRender(true);
-      const timer = setTimeout(() => {
-        setIsAnimating(true);
-      }, 50);
-      return () => clearTimeout(timer);
-    } else {
-      setIsAnimating(false);
-      const timeout = setTimeout(() => {
-        setShouldRender(false);
-      }, 350);
-      return () => clearTimeout(timeout);
-    }
-  }, [isOpen]);
   
   // Google Sheets CSV data source - Updated to new spreadsheet
   const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRBerrxFj5qKyqlWidn983mMQWCNBBsl824Nr8qSiHNqNaIKAr-RLEhDP_P2TuVnewkLms8EFdBiY2T/pub?output=csv';
@@ -302,43 +283,25 @@ Sent from LA Center Unit Request System
   const deviceCapabilities = useMemo(() => detectDevice(), []);
   const isMobile = deviceCapabilities.isMobile;
 
-  if (!shouldRender) return null;
+  if (!isOpen) return null;
 
   return (
-    <div 
-      className="fixed inset-0 z-50 flex p-2 sm:p-4" 
-      style={{
-        alignItems: isMobile ? 'flex-start' : 'center',
-        justifyContent: 'center',
-        paddingTop: isMobile ? '80px' : '16px',
-        backgroundColor: isAnimating ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0)',
-        backdropFilter: isAnimating ? 'blur(4px)' : 'blur(0px)',
-        opacity: isAnimating ? 1 : 0,
-        transition: 'all 300ms ease-in-out',
-        pointerEvents: isAnimating ? 'auto' : 'none'
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div 
-        className={`bg-white rounded-lg max-w-4xl w-full overflow-hidden flex flex-col ${
-          isMobile ? 'max-h-[calc(100vh-100px)]' : 'max-h-[95vh] sm:max-h-[90vh]'
-        }`}
-        style={{
-          transform: isAnimating ? 'scale(1)' : 'scale(0.95)',
-          opacity: isAnimating ? 1 : 0,
-          transition: 'all 300ms ease-in-out'
-        }}
-      >
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex p-2 sm:p-4" style={{
+      alignItems: isMobile ? 'flex-start' : 'center',
+      justifyContent: 'center',
+      paddingTop: isMobile ? '80px' : '16px'
+    }}>
+      <div className={`bg-white rounded-lg max-w-4xl w-full overflow-hidden flex flex-col transition-all duration-500 ease-in-out transform ${
+        isMobile ? 'max-h-[calc(100vh-100px)]' : 'max-h-[95vh] sm:max-h-[90vh]'
+      } ${isOpen ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0'}`}>
         {/* Header */}
         <div className="flex items-center justify-between p-3 sm:p-4 border-b">
           <h2 className="text-lg sm:text-xl font-bold">Unit Request Form</h2>
           <button
             onClick={onClose}
-            className="flex items-center justify-center w-10 h-10 hover:bg-gray-100 rounded-full transition-colors"
+            className="p-1 hover:bg-gray-100 rounded-full transition-colors"
           >
-            <X className="w-6 h-6" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 

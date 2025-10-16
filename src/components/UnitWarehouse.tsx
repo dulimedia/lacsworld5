@@ -6,7 +6,6 @@ import { Mesh, Object3D, MeshStandardMaterial, MeshPhysicalMaterial, Material, C
 import { FALLBACK_UNIT_DATA } from '../App';
 import { UnitData, LoadedModel } from '../types';
 import { useFilterStore } from '../stores/useFilterStore';
-import { isLowMemoryDevice } from '../runtime/mobileProfile';
 import FresnelMaterial from '../materials/FresnelMaterial';
 import PalmTreeInstancerSimple from './PalmTreeInstancerSimple';
 import { assetUrl } from '../lib/assets';
@@ -160,40 +159,27 @@ const SingleModelGLB: React.FC<{
 
           // Transparent buildings - enhanced material with subtle physical properties
           if (fileName.includes('transparent buildings')) {
-            console.log('🟢 Applying glass material to transparent buildings (iOS: opaque fallback)');
+            console.log('🟢 Applying enhanced glass material to transparent buildings');
             
-            // iOS/Low-memory: Use opaque material instead of transparent glass
-            if (isLowMemoryDevice()) {
-              const simpleMaterial = new THREE.MeshStandardMaterial({
-                color: 0x9fb4c7,
-                metalness: 0.0,
-                roughness: 0.15,
-                envMapIntensity: 0.0,
-                transparent: false,
-                side: THREE.FrontSide
-              });
-              child.material = simpleMaterial;
-            } else {
-              const glassMaterial = new THREE.MeshPhysicalMaterial({
-                color: 0xA9BCB8,
-                transparent: true,
-                opacity: 0.25,
-                roughness: 0.3,
-                metalness: 0.0,
-                clearcoat: 0.1,
-                clearcoatRoughness: 0.3,
-                side: THREE.DoubleSide,
-                depthWrite: false,
-                alphaToCoverage: true,
-                envMapIntensity: 0.5,
-                emissive: 0x000000,
-                emissiveIntensity: 0,
-                toneMapped: true
-              });
-              child.material = glassMaterial;
-              child.renderOrder = 100;
-            }
+            const glassMaterial = new THREE.MeshPhysicalMaterial({
+              color: 0xA9BCB8,
+              transparent: true,
+              opacity: 0.25,
+              roughness: 0.3,
+              metalness: 0.0,
+              clearcoat: 0.1,
+              clearcoatRoughness: 0.3,
+              side: THREE.DoubleSide,
+              depthWrite: false,
+              alphaToCoverage: true,
+              envMapIntensity: 0.5,
+              emissive: 0x000000,
+              emissiveIntensity: 0,
+              toneMapped: true
+            });
             
+            child.material = glassMaterial;
+            child.renderOrder = 100;
             child.material.needsUpdate = true;
           }
 

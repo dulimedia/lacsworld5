@@ -389,7 +389,7 @@ const UnitDetailPopup: React.FC<UnitDetailPopupProps> = ({
                 whileTap={{ scale: 0.98 }}
               >
                 <Share2 className="w-5 h-5 mr-2" />
-                {shareSuccess ? 'Link Copied!' : 'Share Unit'}
+                {shareSuccess ? 'Link Copied!' : 'Share Suite'}
               </motion.button>
               
               <motion.button

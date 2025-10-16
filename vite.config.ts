@@ -9,8 +9,8 @@ export default defineConfig({
   plugins: [react()],
   base,
   server: {
-    host: '127.0.0.1',
-    port: 3160,
+    host: 'localhost',
+    port: 3175,
     strictPort: false,
   },
   preview: {

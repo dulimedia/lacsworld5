@@ -62,9 +62,9 @@ export function createFresnelHighlightMaterial({
         // Maximum visibility translucent edge color - significantly increased intensity
         vec3 col = uColor * (0.6 + 1.0 * fresnel);  // Increased from 0.4 + 0.7
         
-        // Enhanced bloom effect for better visibility
-        float bloomBoost = fresnel * 4.5; // Increased from 3.5 for more glow
-        col = col + uColor * bloomBoost * 0.75; // Increased from 0.6 for stronger bloom
+        // Maximum bloom effect for maximum visibility
+        float bloomBoost = fresnel * 3.5; // Increased from 2.5
+        col = col + uColor * bloomBoost * 0.6; // Increased from 0.4
         
         // Apply enhanced opacity with fresnel-based variation for maximum visibility
         float finalOpacity = uOpacity * (0.9 + 0.4 * fresnel); // Increased from 0.7 + 0.3

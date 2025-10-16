@@ -84,3 +84,58 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #a0a0a0;
 }
+
+/* Safe-area aware viewport shell */
+.app-viewport {
+  position: fixed;
+  inset: 0;
+  min-height: 100dvh;
+  width: 100vw;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: white;
+}
+
+.app-layout {
+  flex: 1;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+}
+
+.scene-shell {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+}
+
+/* Desktop - add border radius and shadow */
+@media (min-width: 769px) {
+  .app-viewport {
+    padding: 20px;
+    background: radial-gradient(circle at top, #f6f7fb 0%, #d5dde7 100%);
+  }
+  
+  .scene-shell {
+    border-radius: 24px;
+    box-shadow: 0 20px 48px rgba(15, 23, 42, 0.22);
+  }
+}
+
+.scene-shell canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+@supports (-webkit-touch-callout: none) {
+  /* ensure older Safari expands to the dynamic viewport */
+  .app-viewport {
+    min-height: -webkit-fill-available;
+  }
+}

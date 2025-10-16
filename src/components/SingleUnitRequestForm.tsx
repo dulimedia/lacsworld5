@@ -15,8 +15,6 @@ export const SingleUnitRequestForm: React.FC<SingleUnitRequestFormProps> = ({
   unitKey,
   unitName
 }) => {
-  const [shouldRender, setShouldRender] = useState(false);
-  const [isAnimating, setIsAnimating] = useState(false);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -27,23 +25,6 @@ export const SingleUnitRequestForm: React.FC<SingleUnitRequestFormProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
-
-  // Handle mounting and animation timing
-  React.useEffect(() => {
-    if (isOpen) {
-      setShouldRender(true);
-      const timer = setTimeout(() => {
-        setIsAnimating(true);
-      }, 50);
-      return () => clearTimeout(timer);
-    } else {
-      setIsAnimating(false);
-      const timeout = setTimeout(() => {
-        setShouldRender(false);
-      }, 350);
-      return () => clearTimeout(timeout);
-    }
-  }, [isOpen]);
 
   const validateForm = () => {
     const newErrors: {[key: string]: string} = {};
@@ -77,21 +58,21 @@ export const SingleUnitRequestForm: React.FC<SingleUnitRequestFormProps> = ({
       // Prepare email data
       const emailData = {
         to: 'lacenterstudios3d@gmail.com', // LA Center Studios email for unit requests
-        subject: `Unit Inquiry - ${unitName} - ${formData.name}`,
+        subject: `Suite Inquiry - ${unitName} - ${formData.name}`,
         body: `
-New Unit Inquiry
+New Suite Inquiry
 
 From: ${formData.name}
 Email: ${formData.email}
 Phone: ${formData.phone || 'Not provided'}
 
-Requested Unit: ${unitName}
+Requested Suite: ${unitName}
 
 Message:
 ${formData.message}
 
 ---
-Sent from LA Center Unit Request System
+Sent from LA Center Suite Request System
         `.trim()
       };
 
@@ -127,46 +108,29 @@ Sent from LA Center Unit Request System
   const deviceCapabilities = useMemo(() => detectDevice(), []);
   const isMobile = deviceCapabilities.isMobile;
 
-  if (!shouldRender) return null;
+  if (!isOpen) return null;
 
   return (
-    <div 
-      className="fixed inset-0 flex z-[70]"
-      style={{
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: isAnimating ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0)',
-        backdropFilter: isAnimating ? 'blur(4px)' : 'blur(0px)',
-        opacity: isAnimating ? 1 : 0,
-        transition: 'all 300ms ease-in-out',
-        pointerEvents: isAnimating ? 'auto' : 'none'
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div 
-        className={`bg-white rounded-lg shadow-xl max-w-md w-full mx-4 overflow-y-auto ${
-          isMobile ? 'max-h-[calc(100vh-100px)]' : 'max-h-[90vh]'
-        }`}
-        style={{
-          transform: isAnimating ? 'scale(1)' : 'scale(0.95)',
-          opacity: isAnimating ? 1 : 0,
-          transition: 'all 300ms ease-in-out'
-        }}
-      >
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex z-50" style={{
+      alignItems: isMobile ? 'flex-start' : 'center',
+      justifyContent: 'center',
+      paddingTop: isMobile ? '80px' : '0px'
+    }}>
+      <div className={`bg-white rounded-lg shadow-xl max-w-md w-full mx-4 overflow-y-auto transition-all duration-500 ease-in-out transform ${
+        isMobile ? 'max-h-[calc(100vh-100px)]' : 'max-h-[90vh]'
+      } ${isOpen ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0'}`}>
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Request Unit</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Request Suite</h2>
             <p className="text-sm text-gray-600 mt-1">Inquiring about: {unitName}</p>
           </div>
           <button
             onClick={onClose}
-            className="flex items-center justify-center w-10 h-10 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors duration-150"
+            className="flex items-center justify-center w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors duration-150"
             disabled={isSubmitting}
           >
-            <X size={24} className="text-gray-600" />
+            <X size={16} className="text-gray-600" />
           </button>
         </div>
 
@@ -247,7 +211,7 @@ Sent from LA Center Unit Request System
                   className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors resize-none ${
                     errors.message ? 'border-red-300 bg-red-50' : 'border-gray-300'
                   }`}
-                  placeholder="Please provide details about your inquiry..."
+                  placeholder="Let us know when you need it, for how long, and any questions."
                   disabled={isSubmitting}
                 />
                 {errors.message && <p className="text-red-600 text-xs mt-1">{errors.message}</p>}

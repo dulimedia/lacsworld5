@@ -369,7 +369,7 @@ const BuildingNode: React.FC<BuildingNodeProps> = ({
           <Building size={16} className="text-blue-600" />
           <div>
             <div className="text-sm font-semibold text-gray-900">{building}</div>
-            <div className="text-xs text-gray-500">{filteredCount} units</div>
+            <div className="text-xs text-gray-500">{filteredCount} suites</div>
           </div>
         </div>
         <div className="text-right">
@@ -378,7 +378,7 @@ const BuildingNode: React.FC<BuildingNodeProps> = ({
             <span className="text-gray-400 mx-1">/</span>
             <span>{totalCount}</span>
           </div>
-          <div className="text-xs text-gray-500">units shown</div>
+          <div className="text-xs text-gray-500">suites shown</div>
         </div>
       </div>
       
@@ -447,25 +447,14 @@ export const ExploreUnitsPanel: React.FC<ExploreUnitsPanelProps> = ({
   });
 
 
-  // Generate square footage options (500 to 18,205 sf per client requirements)
-  const sqftOptions = useMemo(() => {
-    const options = [];
-    
-    // Add "any size" option
-    options.push({
-      value: -1,
-      label: 'any size'
-    });
-    
-    // Start from 500sf as per client minimum, go to 18,205sf maximum
-    for (let i = 500; i <= 18205; i += 250) {
-      options.push({
-        value: i,
-        label: `${i.toLocaleString()}sf`
-      });
-    }
-    return options;
-  }, []);
+  // Size filter presets based on client requirements
+  const sizePresets = [
+    { label: 'Any Size', minSqft: -1, maxSqft: -1 },
+    { label: '<1,500 sf', minSqft: 0, maxSqft: 1500 },
+    { label: '1,500-4,000 sf', minSqft: 1500, maxSqft: 4000 },
+    { label: '5,000-9,000 sf', minSqft: 5000, maxSqft: 9000 },
+    { label: '9,001-18,000 sf', minSqft: 9001, maxSqft: 18000 }
+  ];
   const [hoveredUnit, setHoveredUnit] = useState<{
     unitName: string;
     unitData?: any;
@@ -475,6 +464,8 @@ export const ExploreUnitsPanel: React.FC<ExploreUnitsPanelProps> = ({
   // Card navigation state
   const [currentView, setCurrentView] = useState<'explore' | 'details'>('explore');
   const [selectedUnitDetails, setSelectedUnitDetails] = useState<any>(null);
+  const [showBackToTop, setShowBackToTop] = useState(false);
+  const detailsContentRef = useRef<HTMLDivElement>(null);
   
   // Unit request modal state
   const [showUnitRequestModal, setShowUnitRequestModal] = useState(false);
@@ -1070,7 +1061,7 @@ export const ExploreUnitsPanel: React.FC<ExploreUnitsPanelProps> = ({
                   <div>
                     <div className="font-semibold text-gray-900 text-xs">{node.name}</div>
                     <div className="text-xs text-gray-500">
-                      showing {filteredCount} units
+                      showing {filteredCount} suites
                     </div>
                   </div>
                 </div>
@@ -1275,11 +1266,11 @@ export const ExploreUnitsPanel: React.FC<ExploreUnitsPanelProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <h2 className="text-xs font-semibold text-gray-900">
-              {currentView === 'details' ? 'Unit Details' : 'Explore Units'}
+              {currentView === 'details' ? 'Suite Details' : 'Explore Suites'}
             </h2>
             {currentView === 'explore' && (
               <span className="text-xs text-gray-500">
-                Showing {totalFilteredUnits} unit{totalFilteredUnits !== 1 ? 's' : ''}
+                Showing {totalFilteredUnits} suite{totalFilteredUnits !== 1 ? 's' : ''}
               </span>
             )}
           </div>
@@ -1305,60 +1296,33 @@ export const ExploreUnitsPanel: React.FC<ExploreUnitsPanelProps> = ({
             {/* Filter Section - Now inside the sliding container */}
             <div className="bg-white bg-opacity-90 backdrop-blur-md border-b border-gray-200 px-3 py-1.5">
               <div className="space-y-1">
-                {/* Square Footage Filter */}
+                {/* Square Footage Filter - Button-based Presets */}
                 <div className="space-y-0.5">
                   <div className="flex items-center space-x-1">
                     <Sliders size={12} className="text-gray-500" />
-                    <span className="text-xs font-medium text-gray-700">Square Footage:</span>
+                    <span className="text-xs font-medium text-gray-700">Size:</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {/* Min Dropdown */}
-                    <div className="space-y-0.5">
-                      <label className="text-xs text-gray-600">Min</label>
-                      <select
-                        value={filters.minSqft}
-                        onChange={(e) => {
-                          const newMin = parseInt(e.target.value);
-                          setFilters(prev => ({
-                            ...prev,
-                            minSqft: Math.min(newMin, prev.maxSqft)
-                          }));
-                        }}
-                        className="w-full text-xs border border-gray-300 rounded px-1.5 py-0.5 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
-                      >
-                        {sqftOptions
-                          .filter(opt => filters.maxSqft === -1 || opt.value <= filters.maxSqft || opt.value === -1)
-                          .map(option => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    
-                    {/* Max Dropdown */}
-                    <div className="space-y-0.5">
-                      <label className="text-xs text-gray-600">Max</label>
-                      <select
-                        value={filters.maxSqft}
-                        onChange={(e) => {
-                          const newMax = parseInt(e.target.value);
-                          setFilters(prev => ({
-                            ...prev,
-                            maxSqft: Math.max(newMax, prev.minSqft)
-                          }));
-                        }}
-                        className="w-full text-xs border border-gray-300 rounded px-1.5 py-0.5 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
-                      >
-                        {sqftOptions
-                          .filter(opt => filters.minSqft === -1 || opt.value >= filters.minSqft || opt.value === -1)
-                          .map(option => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                  <div className="grid grid-cols-2 gap-1">
+                    {sizePresets.map((preset, index) => {
+                      const isActive = filters.minSqft === preset.minSqft && filters.maxSqft === preset.maxSqft;
+                      return (
+                        <button
+                          key={index}
+                          onClick={() => setFilters(prev => ({ 
+                            ...prev, 
+                            minSqft: preset.minSqft, 
+                            maxSqft: preset.maxSqft 
+                          }))}
+                          className={`text-xs px-2 py-1 rounded transition-colors duration-150 ${
+                            isActive
+                              ? 'bg-blue-500 text-white'
+                              : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
                 
@@ -1428,7 +1392,14 @@ export const ExploreUnitsPanel: React.FC<ExploreUnitsPanelProps> = ({
           </div>
 
         {/* Details Panel - Right side */}
-        <div className="w-full flex-shrink-0 overflow-y-auto">
+        <div 
+          className="w-full flex-shrink-0 overflow-y-auto"
+          ref={detailsContentRef}
+          onScroll={(e) => {
+            const target = e.target as HTMLDivElement;
+            setShowBackToTop(target.scrollTop > 200);
+          }}
+        >
           <div className="h-full bg-white">
             {/* Details Header */}
             <div className="bg-white border-b border-gray-200 px-6 py-4">
@@ -1454,12 +1425,27 @@ export const ExploreUnitsPanel: React.FC<ExploreUnitsPanelProps> = ({
             </div>
 
             {/* Details Content */}
-            <div className="p-6 space-y-6">
+            <div className="p-6 space-y-6 relative">
+              {/* Back to Top Button */}
+              {showBackToTop && (
+                <button
+                  onClick={() => {
+                    detailsContentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className="fixed bottom-24 right-6 bg-blue-500 hover:bg-blue-600 text-white p-3 rounded-full shadow-lg transition-all duration-200 z-50 flex items-center justify-center"
+                  title="Back to Top"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                  </svg>
+                </button>
+              )}
+
               {/* Unit Info Card */}
               <div className="bg-gray-50 rounded-lg p-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Unit Number</p>
+                    <p className="text-sm font-medium text-gray-500">Suite Number</p>
                     <p className="text-lg font-semibold text-gray-900">
                       {selectedUnitDetails?.unit_name || 'N/A'}
                     </p>
@@ -1562,7 +1548,7 @@ export const ExploreUnitsPanel: React.FC<ExploreUnitsPanelProps> = ({
                     }}
                   >
                     <MessageCircle size={16} />
-                    <span>Request This Unit</span>
+                    <span>Lease this space</span>
                   </button>
                 )}
                 
@@ -1599,7 +1585,7 @@ export const ExploreUnitsPanel: React.FC<ExploreUnitsPanelProps> = ({
                   }}
                 >
                   <Share size={16} />
-                  <span>Share Unit</span>
+                  <span>Share Suite</span>
                 </button>
               </div>
             </div>
@@ -1618,7 +1604,7 @@ export const ExploreUnitsPanel: React.FC<ExploreUnitsPanelProps> = ({
           <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-hidden flex flex-col">
             {/* Modal Header */}
             <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="text-lg font-bold">Request Unit</h2>
+              <h2 className="text-lg font-bold">Request Suite</h2>
               <button
                 onClick={() => setShowUnitRequestModal(false)}
                 className="p-1 hover:bg-gray-100 rounded-full transition-colors"

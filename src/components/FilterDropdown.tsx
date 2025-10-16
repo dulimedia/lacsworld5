@@ -223,7 +223,7 @@ export const FilterDropdown: React.FC<FilterDropdownProps> = React.memo(({
           onClick={handleToggleOpen}
           className="w-full flex items-center justify-between px-3 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-md"
         >
-          <span className="text-sm font-medium">Explore Units</span>
+          <span className="text-sm font-medium">Explore Suites</span>
           <ChevronDown />
         </button>
       </div>
@@ -231,7 +231,7 @@ export const FilterDropdown: React.FC<FilterDropdownProps> = React.memo(({
       <div className={getDropdownClasses()} role="menu" aria-hidden={!isOpen}>
         <div className="p-3 border-b border-gray-200 bg-gray-50">
           <div className="flex items-center justify-between">
-            <div className="text-xs text-gray-600">Units organized by folder (from public/models/boxes)</div>
+            <div className="text-xs text-gray-600">Suites organized by folder (from public/models/boxes)</div>
             {activeFilter && (
               <button
                 onClick={() => {
@@ -248,7 +248,7 @@ export const FilterDropdown: React.FC<FilterDropdownProps> = React.memo(({
             <div className="text-xs text-blue-600 mt-1">
               Active: {activeFilter.level === 'building' ? `Building - ${activeFilter.building}` 
                      : activeFilter.level === 'floor' ? `Floor - ${activeFilter.building}/${activeFilter.floor}`
-                     : `Unit - ${activeFilter.unit}`}
+                     : `Suite - ${activeFilter.unit}`}
             </div>
           )}
         </div>
@@ -265,7 +265,7 @@ export const FilterDropdown: React.FC<FilterDropdownProps> = React.memo(({
               .map((child, idx) => renderNode(child, `${tree.name}/${typeof child === 'string' ? child : child.name}-${idx}`, []))}
           </div>
         ) : (
-          <div className="p-4 text-sm text-gray-500">Loading units...</div>
+          <div className="p-4 text-sm text-gray-500">Loading suites...</div>
         )}
       </div>
     </div>
