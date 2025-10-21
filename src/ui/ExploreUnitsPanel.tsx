@@ -269,21 +269,25 @@ const FloorNode: React.FC<FloorNodeProps> = ({
         </div>
       </div>
       
-      {isExpanded && (
-        <div className="bg-gray-25">
-          {visibleUnits.map(unit => (
-            <UnitRow
-              key={unit.unit_key}
-              unit={unit}
-              isSelected={selectedUnitKey === unit.unit_key}
-              isHovered={hoveredUnitKey === unit.unit_key}
-              isDimmed={false}
-              onHover={handleUnitHover}
-              onSelect={handleUnitSelect}
-            />
-          ))}
-        </div>
-      )}
+      <div 
+        className="bg-gray-25 overflow-hidden transition-all duration-300 ease-in-out"
+        style={{
+          maxHeight: isExpanded ? `${visibleUnits.length * 60}px` : '0px',
+          opacity: isExpanded ? 1 : 0
+        }}
+      >
+        {visibleUnits.map(unit => (
+          <UnitRow
+            key={unit.unit_key}
+            unit={unit}
+            isSelected={selectedUnitKey === unit.unit_key}
+            isHovered={hoveredUnitKey === unit.unit_key}
+            isDimmed={false}
+            onHover={handleUnitHover}
+            onSelect={handleUnitSelect}
+          />
+        ))}
+      </div>
     </div>
   );
 };
@@ -348,20 +352,12 @@ const BuildingNode: React.FC<BuildingNodeProps> = ({
 
   const toggleFloorExpanded = (floor: string) => {
     setExpandedFloors(prev => {
-      const floorKey = `${building}/${floor}`;
       const isCurrentlyExpanded = prev[floor];
       
       if (isCurrentlyExpanded) {
         return { ...prev, [floor]: false };
       } else {
-        const buildingPrefix = `${building}/`;
-        const newState: Record<string, boolean> = {};
-        Object.keys(prev).forEach(key => {
-          if (!key.startsWith(buildingPrefix)) {
-            newState[key] = prev[key];
-          }
-        });
-        return { ...newState, [floor]: true };
+        return { [floor]: true };
       }
     });
   };

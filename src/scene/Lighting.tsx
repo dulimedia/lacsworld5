@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
 import { useThree } from "@react-three/fiber";
-import { DirectionalLight, OrthographicCamera, PCFShadowMap } from "three";
+import { DirectionalLight, OrthographicCamera, PCFSoftShadowMap } from "three";
 import { detectTier } from "../lib/graphics/tier";
+import { useFitDirectionalLightShadow } from "./ShadowFit";
 
 export interface LightingProps {
   shadowBias?: number;
@@ -10,11 +11,11 @@ export interface LightingProps {
 }
 
 export function Lighting({ 
-  shadowBias = -0.0005, 
-  shadowNormalBias = 0.02,
+  shadowBias = -0.0003, 
+  shadowNormalBias = 0.05,
   onLightCreated 
 }: LightingProps = {}) {
-  const { scene } = useThree();
+  const { scene, gl } = useThree();
   const sunRef = useRef<DirectionalLight | null>(null);
 
   useEffect(() => {
@@ -49,9 +50,11 @@ export function Lighting({
       scene.add(sun);
       sunRef.current = sun;
 
+      gl.shadowMap.type = PCFSoftShadowMap;
+
       onLightCreated?.(sun);
 
-      console.log(`🌅 Sun shadow initialized: ${mapSize}×${mapSize}, bias=${shadowBias}, normalBias=${shadowNormalBias}`);
+      console.log(`🌅 Sun shadow initialized: ${mapSize}×${mapSize}, bias=${shadowBias}, normalBias=${shadowNormalBias}, dynamic frustum enabled`);
     });
 
     return () => { 
@@ -60,7 +63,14 @@ export function Lighting({
       lights.forEach(l => scene.remove(l)); 
       sunRef.current = null;
     };
-  }, [scene, shadowBias, shadowNormalBias, onLightCreated]);
+  }, [scene, gl, shadowBias, shadowNormalBias, onLightCreated]);
+
+  useFitDirectionalLightShadow(sunRef.current, {
+    maxExtent: 100,
+    margin: 3,
+    mapSize: 4096,
+    snap: true
+  });
 
   return null;
 }
