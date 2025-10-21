@@ -1,79 +1,122 @@
 import { useGLTF } from '@react-three/drei';
 import { useEffect } from 'react';
 import * as THREE from 'three';
+import { makeFacesBehave } from '../utils/makeFacesBehave';
+import { fixInvertedFacesSelective } from '../utils/fixInvertedFacesSelective';
+import { generateSceneReport, printReport } from '../debug/MeshInspector';
 
 export function SingleEnvironmentMesh() {
-  // Load 4 environment files - NO DRACO (all decompressed)
-  const others = useGLTF('/models/environment/others2.glb', false);
-  const frame = useGLTF('/models/environment/frame-raw-14.glb', false);
-  const roof = useGLTF('/models/environment/roof and walls.glb', false);
-  const stages = useGLTF('/models/environment/stages.glb', false);
+  const others = useGLTF('/models/environment/others2.glb');
+  const frame = useGLTF('/models/environment/frame-raw-14.glb');
+  const roof = useGLTF('/models/environment/roof and walls.glb');
+  const stages = useGLTF('/models/environment/stages.glb');
 
-  // Configure others2.glb
   useEffect(() => {
     if (others.scene) {
-      console.log('🏗️ Others2 Model Loaded');
-      console.log('  - Total children:', others.scene.children.length);
+      console.log('🔵 Processing Others2 model...');
+      makeFacesBehave(others.scene, true);
+      
+      let meshCount = 0;
+      let shadowCount = 0;
       
       others.scene.traverse((child) => {
         if ((child as THREE.Mesh).isMesh) {
           const mesh = child as THREE.Mesh;
-          console.log(`  📦 Others Mesh: "${mesh.name || 'unnamed'}"`);
+          meshCount++;
+          
+          if (mesh.geometry && mesh.geometry.attributes.position) {
+            const vertCount = mesh.geometry.attributes.position.count;
+            console.log(`  Mesh: ${mesh.name || 'unnamed'} (${vertCount} vertices)`);
+          }
+          
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          shadowCount++;
+          
+          if (mesh.material) {
+            const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+            materials.forEach((mat: any) => {
+              mat.shadowSide = THREE.FrontSide;
+              
+              if (mat.normalMap) {
+                console.log(`  📄 Removed normalMap from ${mesh.name || 'unnamed'}`);
+                delete mat.normalMap;
+              }
+              if (mat.roughnessMap) delete mat.roughnessMap;
+              if (mat.metalnessMap) delete mat.metalnessMap;
+              if (mat.map) mat.map.needsUpdate = true;
+              mat.needsUpdate = true;
+            });
+          }
         }
       });
-      
-      console.log('✅ Others2 loaded');
+      console.log(`✅ Others2 configured: ${meshCount} meshes, ${shadowCount} shadow-enabled`);
     }
   }, [others.scene]);
 
-  // Configure frame-raw-14.glb
   useEffect(() => {
     if (frame.scene) {
-      console.log('🏗️ Frame-raw-14 Model Loaded');
-      console.log('  - Total children:', frame.scene.children.length);
-      
-      frame.scene.traverse((child) => {
-        if ((child as THREE.Mesh).isMesh) {
-          const mesh = child as THREE.Mesh;
-          console.log(`  📦 Frame Mesh: "${mesh.name || 'unnamed'}"`);
-        }
-      });
-      
-      console.log('✅ Frame-raw-14 loaded');
+      console.log('🔵 Processing Frame model...');
+      makeFacesBehave(frame.scene);
+      console.log('🔧 Running selective face fixer on Frame...');
+      fixInvertedFacesSelective(frame.scene);
+      console.log('✅ Frame configured with safe selective face fixing');
     }
   }, [frame.scene]);
 
-  // Configure roof and walls.glb
   useEffect(() => {
     if (roof.scene) {
-      console.log('🏗️ Roof and Walls Model Loaded');
-      console.log('  - Total children:', roof.scene.children.length);
+      console.log('🔵 Processing Roof model...');
+      makeFacesBehave(roof.scene);
       
+      let meshCount = 0;
       roof.scene.traverse((child) => {
         if ((child as THREE.Mesh).isMesh) {
           const mesh = child as THREE.Mesh;
-          console.log(`  📦 Roof Mesh: "${mesh.name || 'unnamed'}"`);
+          meshCount++;
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          
+          if (mesh.material) {
+            if (Array.isArray(mesh.material)) {
+              mesh.material.forEach(mat => {
+                mat.shadowSide = THREE.FrontSide;
+              });
+            } else {
+              mesh.material.shadowSide = THREE.FrontSide;
+            }
+          }
         }
       });
-      
-      console.log('✅ Roof and Walls loaded');
+      console.log(`✅ Roof configured: ${meshCount} meshes`);
     }
   }, [roof.scene]);
 
-  // Configure stages.glb
   useEffect(() => {
     if (stages.scene) {
-      console.log('🏗️ Stages Model Loaded');
-      console.log('  - Total children:', stages.scene.children.length);
+      console.log('🔵 Processing Stages model...');
+      makeFacesBehave(stages.scene);
       
+      let meshCount = 0;
       stages.scene.traverse((child) => {
         if ((child as THREE.Mesh).isMesh) {
           const mesh = child as THREE.Mesh;
-          console.log(`  📦 Stage Mesh: "${mesh.name || 'unnamed'}"`);
+          meshCount++;
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          
+          if (mesh.material) {
+            if (Array.isArray(mesh.material)) {
+              mesh.material.forEach(mat => {
+                mat.shadowSide = THREE.FrontSide;
+              });
+            } else {
+              mesh.material.shadowSide = THREE.FrontSide;
+            }
+          }
         }
       });
-      
-      console.log('✅ Stages loaded');
+      console.log(`✅ Stages configured: ${meshCount} meshes`);
     }
   }, [stages.scene]);
 
@@ -87,8 +130,7 @@ export function SingleEnvironmentMesh() {
   );
 }
 
-// Preload all 4 files - NO DRACO (all decompressed)
-useGLTF.preload('/models/environment/others2.glb', false);
-useGLTF.preload('/models/environment/frame-raw-14.glb', false);
-useGLTF.preload('/models/environment/roof and walls.glb', false);
-useGLTF.preload('/models/environment/stages.glb', false);
+useGLTF.preload('/models/environment/others2.glb');
+useGLTF.preload('/models/environment/frame-raw-14.glb');
+useGLTF.preload('/models/environment/roof and walls.glb');
+useGLTF.preload('/models/environment/stages.glb');

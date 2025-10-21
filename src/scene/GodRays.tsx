@@ -31,14 +31,14 @@ export function GodRays() {
         <GodRaysEffect
           sun={sunRef}
           blendFunction={BlendFunction.SCREEN}
-          samples={40}
+          samples={30}
           density={0.96}
           decay={0.92}
-          weight={0.5}
-          exposure={0.9}
-          clampMax={1.0}
+          weight={0.15}
+          exposure={0.25}
+          clampMax={0.8}
           blur={true}
-          resolutionScale={0.9}
+          resolutionScale={0.7}
         />
         
         {/* Bloom for highlights */}
@@ -68,7 +68,7 @@ export function GodRays() {
         {/* Vignette for cinematic edge darkening */}
         <Vignette 
           offset={0.3} 
-          darkness={0.6}
+          darkness={0.2}
           eskil={false}
         />
         

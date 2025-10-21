@@ -17,6 +17,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      pages_enabled: ${{ steps.check-pages.outputs.enabled }}
     steps:
       - uses: actions/checkout@v4
 
@@ -42,7 +44,45 @@ jobs:
           test -f dist/palm-tree.glb || (echo "missing palm-tree.glb" && exit 1)
           test -f dist/textures/qwantani_noon_puresky_2k.hdr || (echo "missing hdr" && exit 1)
 
+      - name: Check GitHub Pages status
+        id: check-pages
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const hasPagesFlag = context.payload?.repository?.has_pages ?? false
+
+            if (!hasPagesFlag) {
+              core.notice('Repository has_pages flag is false; skipping GitHub Pages deployment.')
+              core.setOutput('enabled', 'false')
+              return
+            }
+
+            try {
+              const { data } = await github.rest.repos.getPages({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+              })
+
+              if (data.build_type !== 'workflow') {
+                core.warning(`GitHub Pages build type is "${data.build_type}". Set Pages to use GitHub Actions to enable deployments.`)
+                core.setOutput('enabled', 'false')
+                return
+              }
+
+              core.info('GitHub Pages is configured for GitHub Actions; proceeding with deployment.')
+              core.setOutput('enabled', 'true')
+            } catch (error) {
+              if (error.status === 404) {
+                core.info('GitHub Pages is not enabled for this repository. Skipping deployment.')
+                core.setOutput('enabled', 'false')
+              } else {
+                throw error
+              }
+            }
+
       - name: Upload artifact
+        if: steps.check-pages.outputs.enabled == 'true'
         uses: actions/upload-pages-artifact@v3
         with:
           path: dist
@@ -50,6 +90,7 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    if: ${{ needs.build.outputs.pages_enabled == 'true' }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

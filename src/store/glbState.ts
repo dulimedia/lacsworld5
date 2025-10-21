@@ -531,8 +531,10 @@ export const useGLBState = create<GLBState>((set, get) => ({
   centerCameraOnUnit: (building: string, floor: string, unit: string) => {
     const { cameraControlsRef, getGLBByUnit } = get();
     
+    console.log('📷 centerCameraOnUnit called:', { building, floor, unit });
     
     if (!cameraControlsRef?.current) {
+      console.warn('⚠️ No camera controls ref available');
       return;
     }
 
@@ -541,8 +543,11 @@ export const useGLBState = create<GLBState>((set, get) => ({
     const unitGLB = getGLBByUnit(building, floor, unit);
     
     if (!unitGLB?.object) {
+      console.warn('⚠️ Unit GLB or object not found:', { building, floor, unit, unitGLB });
       return;
     }
+    
+    console.log('✅ Found unit GLB:', unitGLB.key);
     
     // Get the unit's world position
     const unitPosition = new THREE.Vector3();
@@ -556,20 +561,25 @@ export const useGLBState = create<GLBState>((set, get) => ({
       const box = new THREE.Box3().setFromObject(unitGLB.object);
       if (!box.isEmpty()) {
         box.getCenter(unitPosition);
+        console.log('📦 Using bounding box center:', unitPosition);
       }
+    } else {
+      console.log('📍 Using world position:', unitPosition);
     }
 
     // Skip if we still can't find a valid position
     if (unitPosition.lengthSq() < 0.01) {
+      console.warn('⚠️ Could not determine valid position for unit');
       return;
     }
     
+    console.log('🎯 Setting camera target to:', unitPosition);
 
     // Use the correct CameraControls API method
     try {
       // setTarget(targetX, targetY, targetZ, enableTransition) - Sets only the target while keeping current camera position
       controls.setTarget(unitPosition.x, unitPosition.y, unitPosition.z, true);
-      
+      console.log('✅ Camera target set successfully');
     } catch (error) {
       console.error('❌ Error setting camera target:', error);
     }

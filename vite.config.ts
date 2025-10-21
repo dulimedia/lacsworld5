@@ -19,6 +19,7 @@ export default defineConfig({
     strictPort: true,
   },
   build: {
+    target: 'esnext',
     outDir: 'dist',
     sourcemap: false,
     chunkSizeWarningLimit: 1500,
@@ -27,6 +28,11 @@ export default defineConfig({
       output: {
         manualChunks: undefined,
       },
+    },
+  },
+  optimizeDeps: {
+    esbuildOptions: {
+      target: 'esnext',
     },
   },
 })

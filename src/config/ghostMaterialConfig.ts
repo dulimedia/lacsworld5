@@ -23,6 +23,23 @@ export const GHOST_MATERIAL_CONFIG = {
   edgeBrightness: 0.6,   // Edge highlight strength
 };
 
+// Selected unit solid blue material configuration
+export const SELECTED_MATERIAL_CONFIG = {
+  color: 0x3b82f6,           // Bright blue
+  emissive: 0x3b82f6,        // Blue emissive glow
+  emissiveIntensity: 0.5,    // Medium intensity
+  metalness: 0.3,            // Slight metallic look
+  roughness: 0.4,            // Smooth but not mirror-like
+  transparent: false,
+  opacity: 1.0,
+};
+
+// Hovered unit subtle glow configuration
+export const HOVERED_MATERIAL_CONFIG = {
+  emissive: 0x3b82f6,        // Blue emissive
+  emissiveIntensity: 0.2,    // Subtle intensity
+};
+
 // Alternative presets for different visual styles
 export const GHOST_MATERIAL_PRESETS = {
   subtle: {

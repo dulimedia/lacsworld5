@@ -7,7 +7,7 @@ import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { useGLBState, type GLBNodeInfo } from '../store/glbState';
 import { useExploreState } from '../store/exploreState';
-// FresnelMaterial removed - ghost effect is now handled by SelectedUnitOverlay
+import { SELECTED_MATERIAL_CONFIG, HOVERED_MATERIAL_CONFIG } from '../config/ghostMaterialConfig';
 
 interface GLBUnitProps {
   node: GLBNodeInfo;
@@ -16,115 +16,101 @@ interface GLBUnitProps {
 const GLBUnit: React.FC<GLBUnitProps> = ({ node }) => {
   const { scene, error } = useGLTF(node.path);
   const groupRef = useRef<THREE.Group>(null);
+  const originalMaterialsRef = useRef<Map<string, THREE.Material | THREE.Material[]>>(new Map());
+  
+  const { selectedUnit, selectedBuilding, selectedFloor, hoveredUnit } = useGLBState();
+  const { selectedUnitKey, hoveredUnitKey } = useExploreState();
   
   // Handle GLB loading errors gracefully
   if (error) {
     console.warn(`⚠️ Failed to load GLB: ${node.key} at ${node.path}`, error);
     return null;
   }
+  
+  // Log successful load
+  if (scene && !node.isLoaded) {
+    console.log(`📦 GLBUnit loaded: ${node.key}`);
+  }
 
-  // Immediately apply invisible material to prevent any rendering
+  // Store original materials on first load
   useEffect(() => {
-    if (scene) {
-      // Use a completely invisible material that doesn't render anything
-      const invisibleMaterial = new THREE.MeshBasicMaterial({
-        visible: false,
-        transparent: true,
-        opacity: 0.0,
-        colorWrite: false,
-        depthWrite: false,
-        depthTest: false
-      });
-
+    if (scene && originalMaterialsRef.current.size === 0) {
       scene.traverse((child) => {
-        if (child instanceof THREE.Mesh) {
-          child.material = invisibleMaterial;
-          child.visible = false;
-          child.renderOrder = -999; // Render behind everything
+        if (child instanceof THREE.Mesh && child.material) {
+          originalMaterialsRef.current.set(child.uuid, child.material);
         }
       });
     }
   }, [scene]);
-  // Material references removed - units are always hidden, ghost effect handled by overlay
-  const { selectUnit } = useGLBState();
+  
+  const { selectUnit, updateGLBObject } = useGLBState();
   const { setSelected } = useExploreState();
   
-  // Update the GLB state store with the loaded object and hide immediately
+  // Update the GLB state store with the loaded object
   useEffect(() => {
     if (groupRef.current && !node.isLoaded) {
-      // Hide the unit immediately on load to prevent any flash of solid material
-      groupRef.current.visible = false;
-      
-      const { updateGLBObject } = useGLBState.getState();
       updateGLBObject(node.key, groupRef.current);
     }
-  }, [node.key, node.isLoaded]);
+  }, [node.key, node.isLoaded, updateGLBObject]);
 
-  // Fresnel material removed - ghost effect is handled by SelectedUnitOverlay component
+  // Determine if this unit is selected or hovered
+  // hoveredUnit stores the full key like "Maryland Building/First Floor/M-140"
+  const isHovered = hoveredUnit === node.key && !selectedUnit;
+  
+  // selectedUnit stores the unit name like "M-140", need to match all three parts
+  const isSelected = selectedUnit === node.unitName && 
+                    selectedBuilding === node.building && 
+                    selectedFloor === node.floor;
 
-  // Original materials storage removed - units are always hidden
-
-  // Suite clicking disabled - selection only through Explore Suites panel
-  // const handleClick = (event: any) => {
-  //   event.stopPropagation();
-  //   console.log(`🖱️ GLB Unit clicked: ${node.building}/${node.floor}/${node.unitName}`);
-  //   
-  //   // Clear any existing selections first, then select this unit
-  //   selectUnit(node.building, node.floor, node.unitName);
-  //   
-  //   // Also notify the explore state for any UI updates
-  //   setSelected(`${node.building}_${node.floor}_${node.unitName}`);
-  // };
-
-  // State machine for unit visibility - units are ALWAYS hidden
-  // The SelectedUnitOverlay component handles all visual representation
+  // Apply material state based on selection/hover
   useEffect(() => {
     if (!groupRef.current) return;
 
-    // CRITICAL: Original meshes must ALWAYS be invisible
-    // Only the SelectedUnitOverlay shows the ghost/highlight state
-    groupRef.current.visible = false;
-    
-    // Ensure all child meshes are also hidden
     groupRef.current.traverse((child) => {
       if (child instanceof THREE.Mesh) {
-        child.visible = false;
+        const originalMaterial = originalMaterialsRef.current.get(child.uuid);
+        
+        if (isSelected) {
+          // Apply bright blue highlight material
+          const blueMaterial = new THREE.MeshStandardMaterial({
+            color: SELECTED_MATERIAL_CONFIG.color,
+            emissive: SELECTED_MATERIAL_CONFIG.emissive,
+            emissiveIntensity: SELECTED_MATERIAL_CONFIG.emissiveIntensity,
+            metalness: SELECTED_MATERIAL_CONFIG.metalness,
+            roughness: SELECTED_MATERIAL_CONFIG.roughness,
+            transparent: SELECTED_MATERIAL_CONFIG.transparent,
+            opacity: SELECTED_MATERIAL_CONFIG.opacity,
+          });
+          child.material = blueMaterial;
+          child.visible = true;
+        } else if (isHovered) {
+          // Apply subtle emissive glow to original material
+          if (originalMaterial) {
+            const hoveredMaterial = (originalMaterial as THREE.MeshStandardMaterial).clone();
+            hoveredMaterial.emissive = new THREE.Color(HOVERED_MATERIAL_CONFIG.emissive);
+            hoveredMaterial.emissiveIntensity = HOVERED_MATERIAL_CONFIG.emissiveIntensity;
+            child.material = hoveredMaterial;
+            child.visible = true;
+          }
+        } else {
+          // Restore original material
+          if (originalMaterial) {
+            child.material = originalMaterial;
+          }
+          child.visible = true;
+        }
       }
     });
-  }, [node.state]);
+  }, [isSelected, isHovered]);
 
-  // Material restoration removed - units always use original materials (hidden)
-
-  // Animation removed - ghost effect animation handled by SelectedUnitOverlay
-
-  // Clone the scene to avoid sharing materials between instances
+  // Clone the scene for instancing
   const clonedScene = useMemo(() => {
     const cloned = scene.clone();
-    // Immediately hide the cloned scene to prevent any flash
-    cloned.visible = false;
-    
-    // Apply invisible material to prevent any rendering
-    const invisibleMaterial = new THREE.MeshBasicMaterial({
-      visible: false,
-      transparent: true,
-      opacity: 0.0,
-      colorWrite: false,
-      depthWrite: false,
-      depthTest: false
-    });
-    
-    cloned.traverse((child) => {
-      if (child instanceof THREE.Mesh) {
-        child.visible = false;
-        // Apply invisible material to prevent any rendering
-        child.material = invisibleMaterial;
-      }
-    });
     return cloned;
   }, [scene]);
 
   return (
-    <group ref={groupRef} visible={false}>
+    <group ref={groupRef}>
       <primitive object={clonedScene} />
     </group>
   );
@@ -137,7 +123,10 @@ const GLBInitializer: React.FC = () => {
   useEffect(() => {
     // Initialize GLB nodes if not already done
     if (glbNodes.size === 0) {
+      console.log('🔧 GLBManager: Initializing GLB nodes...');
       initializeGLBNodes();
+    } else {
+      console.log(`✅ GLBManager: ${glbNodes.size} nodes already initialized`);
     }
   }, [glbNodes.size, initializeGLBNodes]);
 
@@ -146,6 +135,8 @@ const GLBInitializer: React.FC = () => {
 
 export const GLBManager: React.FC = () => {
   const { glbNodes } = useGLBState();
+  
+  console.log(`🎯 GLBManager: Rendering ${glbNodes.size} units`);
   
   return (
     <group>

@@ -208,6 +208,10 @@ const FloorNode: React.FC<FloorNodeProps> = ({
           unit: glbUnitName 
         });
         selectUnit(unitData.building, unitData.floor, glbUnitName);
+        
+        const { centerCameraOnUnit } = useGLBState.getState();
+        centerCameraOnUnit(unitData.building, unitData.floor, glbUnitName);
+        console.log('📷 Camera centering triggered for:', glbUnitName);
       }
       
       // Navigate to details view if we have the handler
@@ -343,7 +347,23 @@ const BuildingNode: React.FC<BuildingNodeProps> = ({
   }, [building, floors, getUnitsByFloor, getUnitData, filters]);
 
   const toggleFloorExpanded = (floor: string) => {
-    setExpandedFloors(prev => ({ ...prev, [floor]: !prev[floor] }));
+    setExpandedFloors(prev => {
+      const floorKey = `${building}/${floor}`;
+      const isCurrentlyExpanded = prev[floor];
+      
+      if (isCurrentlyExpanded) {
+        return { ...prev, [floor]: false };
+      } else {
+        const buildingPrefix = `${building}/`;
+        const newState: Record<string, boolean> = {};
+        Object.keys(prev).forEach(key => {
+          if (!key.startsWith(buildingPrefix)) {
+            newState[key] = prev[key];
+          }
+        });
+        return { ...newState, [floor]: true };
+      }
+    });
   };
 
   const handleFloorClick = (floor: string) => {
@@ -749,7 +769,19 @@ export const ExploreUnitsPanel: React.FC<ExploreUnitsPanelProps> = ({
   }, [buildings, searchTerm]);
 
   const toggleBuildingExpanded = (building: string) => {
-    setExpandedBuildings(prev => ({ ...prev, [building]: !prev[building] }));
+    setExpandedBuildings(prev => {
+      const isCurrentlyExpanded = prev[building];
+      if (isCurrentlyExpanded) {
+        return { ...prev, [building]: false };
+      } else {
+        const newState = Object.keys(prev).reduce((acc, key) => ({...acc, [key]: false}), {} as Record<string, boolean>);
+        return { ...newState, [building]: true };
+      }
+    });
+    
+    if (!expandedBuildings[building]) {
+      setExpandedFloors({});
+    }
   };
 
   const handleBuildingClick = (building: string) => {

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { CameraControls, Environment, Sky } from '@react-three/drei';
 import { detectDevice, getMobileOptimizedSettings } from './utils/deviceDetection';
@@ -8,6 +8,7 @@ import { MessageCircle, CheckCircle, Building, RotateCcw, RotateCw, ZoomIn, Zoom
 import { assetUrl } from './lib/assets';
 import { UnitWarehouse } from './components/UnitWarehouse';
 import { SingleEnvironmentMesh } from './components/SingleEnvironmentMesh';
+import PalmTreeInstancerSimple from './components/PalmTreeInstancerSimple';
 import UnitDetailPopup from './components/UnitDetailPopup';
 import { ExploreUnitsPanel } from './ui/ExploreUnitsPanel';
 import { GLBManager } from './components/GLBManager';
@@ -27,10 +28,18 @@ import { SimpleShadowDebug as ShadowDebugUI } from './components/SimpleShadowDeb
 import { SceneDebugUI, SceneDebugSettings } from './components/SceneDebugUI';
 import { UnitHoverPreview } from './components/UnitHoverPreview';
 import { SafariErrorBoundary } from './components/SafariErrorBoundary';
-import { AdaptivePerformance } from './components/PerformanceMonitor';
 import { MobilePerformanceMonitor } from './components/MobilePerformanceMonitor';
 import { GodRays } from './scene/GodRays';
 import { Lighting } from './scene/Lighting';
+import { ShadowHelper } from './components/ShadowHelper';
+import { ShadowStressTest } from './components/ShadowStressTest';
+import { Effects } from './components/Effects';
+import { fitSunShadow } from './utils/fitSunShadow';
+import { lazy, Suspense } from 'react';
+const PathTracer = lazy(() => import('./components/pathtracer/PathTracer').then(m => ({ default: m.PathTracer })));
+import { DebugPanel } from './ui/DebugPanel';
+import type { DebugPanelState } from './ui/DebugPanel';
+import { useFaceDebugHotkey } from './hooks/useFaceDebugHotkey';
 import { useUnitStore } from './stores/useUnitStore';
 import { useExploreState, buildUnitsIndex, type UnitRecord } from './store/exploreState';
 import { useGLBState } from './store/glbState';
@@ -38,12 +47,15 @@ import { useCsvUnitData } from './hooks/useCsvUnitData';
 import { emitEvent, getTimestamp } from './lib/events';
 import { validateAllMaterials, setupRendererSafety } from './dev/MaterialValidator';
 import { runDuplicateAudit } from './dev/DuplicateAudit';
+import { RootCanvas } from './ui/RootCanvas';
+import type { Tier } from './lib/graphics/tier';
 
 
 // Component to capture scene and gl refs + setup safety
 const SceneCapture = ({ sceneRef, glRef }: { sceneRef: React.RefObject<THREE.Scene>, glRef: React.RefObject<THREE.WebGLRenderer> }) => {
   const { gl, scene } = useThree();
   const setupComplete = useRef(false);
+  useFaceDebugHotkey();
   
   useEffect(() => {
     sceneRef.current = scene;
@@ -288,7 +300,7 @@ const CameraController: React.FC<{
       makeDefault
       minPolarAngle={0}
       maxPolarAngle={Math.PI * 0.48}
-      minDistance={2}
+      minDistance={8}
       maxDistance={25}
       dollySpeed={0.5}
       truckSpeed={1}
@@ -420,6 +432,27 @@ function App() {
     shadowNormalBias: 0.70,
     shadowMapSize: 4096
   });
+  const [renderTier, setRenderTier] = useState<Tier>('mobile-low');
+  const [debugState, setDebugState] = useState<DebugPanelState>({
+    tier: renderTier,
+    ao: true,
+    ssr: true,
+    ssgi: false,
+    pathtracer: false,
+    ptBounces: 5,
+    composerScale: 1.0,
+    shadowBias: -0.00015,
+    shadowNormalBias: 0.6,
+    showShadowHelper: false,
+    polygonOffsetEnabled: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -2,
+    polygonOffsetRegex: 'slat|louver|mullion|trim|glass|window|panel',
+  });
+  
+  useEffect(() => {
+    setDebugState((prev) => ({ ...prev, tier: renderTier }));
+  }, [renderTier]);
   // Fixed shadow settings - optimized single light source
   const FIXED_SHADOW_SETTINGS = {
     shadowsEnabled: true,
@@ -465,8 +498,9 @@ function App() {
   const glConfig = useMemo(() => {
     return {
       powerPreference: "high-performance",
-      antialias: true,
+      antialias: false,
       alpha: false,
+      logarithmicDepthBuffer: false,
       preserveDrawingBuffer: false,
       stencil: false,
       depth: true,
@@ -1024,115 +1058,110 @@ function App() {
             Using offline data - CSV unavailable: {error}
           </div>
         )}
+
+
         
-        
-        <Canvas
+        <RootCanvas
           shadows
-          dpr={Math.min(window.devicePixelRatio, deviceCapabilities.isMobile ? 1.5 : 1.8)}
-          camera={{ position: [-10, 10, -14], fov: 45, near: 0.01, far: 2000 }}
-          style={{ 
-            width: '100%', 
+          camera={{ position: [-10, 10, -14], fov: 45, near: 0.1, far: 1000 }}
+          style={{
+            width: '100%',
             height: '100%',
             filter: "none"
           }}
-          gl={{
-            powerPreference: "high-performance",
-            antialias: false,
-            alpha: false,
-            logarithmicDepthBuffer: false,
-            preserveDrawingBuffer: false,
-            stencil: false,
-            depth: true,
-            premultipliedAlpha: false,
-            failIfMajorPerformanceCaveat: false,
-          }}
+          gl={glConfig}
           frameloop="always"
+          onTierChange={setRenderTier}
+          onCreated={({ camera }) => {
+            camera.lookAt(0, 0, 0);
+            console.log('📷 Camera initialized - position:', camera.position, 'looking at origin (0, 0, 0)');
+          }}
         >
-          {/* Environment - HDRI lighting */}
-          <Environment
-            files={assetUrl("textures/kloofendal_48d_partly_cloudy_puresky_2k.hdr")}
-            background={true}
-            backgroundIntensity={1.6}
-            environmentIntensity={1.2}
-            resolution={1024}
-          />
-          
-          {/* Lighting System - unified and optimized */}
-          <Lighting 
-            hdriUrl="/env/qwantani_noon_2k.hdr"
-            exposure={1.0}
-          />
-          
-          {/* Volumetric fog for god rays - FogExp2 for exponential density (reduced for better low-angle visibility) */}
-          <fogExp2 attach="fog" args={['#b8d0e8', 0.004]} />
-          
-          {/* Capture scene and gl for external callbacks */}
-          <SceneCapture sceneRef={sceneRef} glRef={glRef} />
-          
-          {/* Post-processing disabled - focus on basic shadows */}
-          {/* <SSAOEffect 
-            enabled={true}
-            ssaoIntensity={0.8}
-            ssaoRadius={0.15}
-            bloomIntensity={0.2}
-            dofEnabled={false}
-            toneMappingEnabled={true}
-          /> */}
+          {(tier) => (
+            <>
+              {/* Environment - HDRI lighting */}
+              <Environment
+                files={assetUrl("textures/kloofendal_48d_partly_cloudy_puresky_2k.hdr")}
+                background={true}
+                backgroundIntensity={1.6}
+                environmentIntensity={1.2}
+                resolution={1024}
+              />
 
-          {/* 3D Scene - Testing Single Environment Mesh */}
-          <SingleEnvironmentMesh />
-          
-          {/* ORIGINAL - Commented out for testing
-          <UnitWarehouse
-            onUnitSelect={handleUnitSelect}
-            onUnitHover={setHoveredUnit}
-            selectedUnit={selectedUnit}
-            unitData={effectiveUnitData}
-            filterHoveredUnit={hoveredUnit}
-            onBoundingSphereData={setSphereData}
-            onLoadingProgress={handleModelsLoadingProgress}
-          />
+              {/* Lighting System - crisp sun shadows */}
+              <Lighting 
+                shadowBias={debugState.shadowBias}
+                shadowNormalBias={debugState.shadowNormalBias}
+              />
+              
+              {/* Shadow Debug Helper */}
+              <ShadowHelper enabled={debugState.showShadowHelper} />
 
-          <GLBManager />
-          */}
-          
-          {/* Selected Unit Highlight Overlay - simplified for low power devices */}
-          {!deviceCapabilities.isLowPowerDevice && <SelectedUnitOverlay />}
-          
-          {/* Canvas Click Handler for clearing selection */}
-          <CanvasClickHandler />
-          
-          {/* God Rays Effect - DISABLED for testing new environment mesh */}
-          {/* {effectsReady && <GodRays />} */}
-          
-          {/* Enhanced Camera Controls with proper object framing */}
-          <CameraController selectedUnit={selectedUnit} controlsRef={orbitControlsRef} />
-          
-          {/* Mobile Performance Monitor */}
-          <MobilePerformanceMonitor />
-          
-          {/* Performance Optimizations - DISABLED for testing */}
-          {/* <AdaptivePixelRatio />
-          <AdaptivePerformance /> */}
-          
-          
-          {/* 3D Scene Popup */}
-          <Unit3DPopupOverlay
-            onExpand={() => {
-              setShow3DPopup(false);
-              setUnitDetailsOpen(true);
-            }}
-            onRequest={(unitKey) => {
-              const unitData = getUnitData(unitKey);
-              setRequestUnitKey(unitKey);
-              setRequestUnitName(unitData?.unit_name || unitKey);
-              setShowSingleUnitRequest(true);
-            }}
-            onClose={() => setShow3DPopup(false)}
-          />
-          
-          {/* Post-Processing Effects - DISABLED FOR PERFORMANCE */}
-        </Canvas>
+              {/* Volumetric fog for god rays - FogExp2 for exponential density (reduced for better low-angle visibility) */}
+              <fogExp2 attach="fog" args={['#b8d0e8', 0.004]} />
+
+              {/* Capture scene and gl for external callbacks */}
+              <SceneCapture sceneRef={sceneRef} glRef={glRef} />
+
+              {/* 3D Scene - Testing Single Environment Mesh */}
+              <SingleEnvironmentMesh />
+
+              {/* Palm Trees */}
+              <PalmTreeInstancerSimple visible={true} />
+
+              {/* GLB Manager for unit highlighting and interaction */}
+              <GLBManager />
+
+              {/* Selected Unit Highlight Overlay - simplified for low power devices */}
+              {!deviceCapabilities.isLowPowerDevice && <SelectedUnitOverlay />}
+
+              {/* Canvas Click Handler for clearing selection */}
+              <CanvasClickHandler />
+
+              {/* God Rays Effect - DISABLED for testing new environment mesh */}
+              {/* {effectsReady && <GodRays />} */}
+
+              {/* Enhanced Camera Controls with proper object framing */}
+              <CameraController selectedUnit={selectedUnit} controlsRef={orbitControlsRef} />
+
+              {/* Mobile Performance Monitor */}
+              <MobilePerformanceMonitor />
+
+              {/* Post-processing Effects - disable when path tracer active */}
+              {effectsReady && debugState.ao && !debugState.pathtracer && (
+                <Effects tier={renderTier} enabled={debugState.ao} />
+              )}
+
+              {/* GPU Path Tracer - mutually exclusive with post-processing */}
+              {effectsReady && debugState.pathtracer && (
+                <Suspense fallback={null}>
+                  <PathTracer 
+                    enabled={debugState.pathtracer} 
+                    tier={renderTier}
+                    bounces={debugState.ptBounces}
+                    renderScale={0.5}
+                    tiles={{ x: 2, y: 2 }}
+                  />
+                </Suspense>
+              )}
+
+              {/* 3D Scene Popup */}
+              <Unit3DPopupOverlay
+                onExpand={() => {
+                  setShow3DPopup(false);
+                  setUnitDetailsOpen(true);
+                }}
+                onRequest={(unitKey) => {
+                  const unitData = getUnitData(unitKey);
+                  setRequestUnitKey(unitKey);
+                  setRequestUnitName(unitData?.unit_name || unitKey);
+                  setShowSingleUnitRequest(true);
+                }}
+                onClose={() => setShow3DPopup(false)}
+              />
+            </>
+          )}
+        </RootCanvas>
           </div>  {/* Close scene-shell */}
         
         
@@ -1343,6 +1372,12 @@ function App() {
       )}
 
       {/* Sun Position Controls - Removed, values hard-coded */}
+      
+      {/* Debug Panel - Press 'D' to toggle */}
+      <DebugPanel
+        state={debugState}
+        onChange={(updates) => setDebugState((prev) => ({ ...prev, ...updates }))}
+      />
         </div>  {/* Close app-layout */}
       </div>  {/* Close app-viewport */}
     </SafariErrorBoundary>
