@@ -56,6 +56,7 @@ interface ExploreUnitsPanelProps {
   onExpandFloorplan?: (floorplanUrl: string, unitName: string, unitData?: any) => void;
   onCloseFilters?: () => void;
   pageType?: 'main' | 'events' | 'stages';
+  sidebarMode?: boolean;
 }
 
 interface BuildingNodeProps {
@@ -414,6 +415,7 @@ export const ExploreUnitsPanel: React.FC<ExploreUnitsPanelProps> = ({
   onRequest,
   onExpandFloorplan,
   onCloseFilters,
+  sidebarMode = false,
   pageType = 'main'
 }) => {
   const exploreState = useExploreState();
@@ -1327,6 +1329,14 @@ export const ExploreUnitsPanel: React.FC<ExploreUnitsPanelProps> = ({
   // Detect if we're on mobile for positioning
   const deviceCapabilities = useMemo(() => detectDevice(), []);
   const isMobile = deviceCapabilities.isMobile;
+
+  if (sidebarMode) {
+    return (
+      <div className="h-full overflow-y-auto">
+        {renderContent()}
+      </div>
+    );
+  }
 
   return (
     <div 

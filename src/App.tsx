@@ -11,6 +11,7 @@ import { SingleEnvironmentMesh } from './components/SingleEnvironmentMesh';
 import PalmTreeInstancerSimple from './components/PalmTreeInstancerSimple';
 import UnitDetailPopup from './components/UnitDetailPopup';
 import { ExploreUnitsPanel } from './ui/ExploreUnitsPanel';
+import { UnifiedSidebar } from './components/UnifiedSidebar';
 import { GLBManager } from './components/GLBManager';
 import { UnitDetailsPopup } from './components/UnitDetailsPopup';
 import { SelectedUnitOverlay } from './components/SelectedUnitOverlay';
@@ -1224,67 +1225,48 @@ function App() {
           </>
         )}
 
-        {/* Desktop Layout - Bottom controls */}
+        {/* Desktop Layout - Camera controls only in bottom right */}
         {!modelsLoading && !deviceCapabilities.isMobile && (
-          <div className="fixed bottom-14 left-14 right-14 z-40 flex justify-between items-end">
-            {/* Explore Suites Button - Bottom Left */}
-            <button
-              onClick={handleToggleExploreDrawer}
-              className="bg-white bg-opacity-90 backdrop-blur-md hover:bg-white hover:bg-opacity-95 text-gray-800 font-semibold py-3 px-6 rounded-lg shadow-lg border border-white border-opacity-50 hover:border-blue-300 flex items-center space-x-3 transition-all duration-200 hover:shadow-xl text-base"
-            >
-              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-              <span className="text-sm">Explore Suites</span>
-              {drawerOpen ? (
-                <svg className="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                </svg>
-              ) : (
-                <svg className="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              )}
-            </button>
-
-            {/* Center Controls */}
-            <div className="flex items-center space-x-3">
-              {/* Request Button */}
-              <button
-                onClick={handleRequestClick}
-                className="bg-white bg-opacity-90 backdrop-blur-md hover:bg-white hover:bg-opacity-95 text-gray-800 font-medium py-2 px-4 rounded-lg shadow-lg border border-white border-opacity-50 hover:border-blue-300 transition-all duration-200 hover:shadow-xl flex items-center space-x-2"
-                title="Submit a request"
-              >
-                <MessageCircle size={20} className="text-gray-600" />
-                <span>Request</span>
-              </button>
+          <div className="fixed bottom-6 right-6 z-40">
+            <div className="scale-90 origin-bottom-right">
+              <NavigationControls
+                onRotateLeft={handleRotateLeft}
+                onRotateRight={handleRotateRight}
+                onZoomIn={handleZoomIn}
+                onZoomOut={handleZoomOut}
+                onResetView={handleResetView}
+              />
             </div>
-
-            {/* Camera Controls - Bottom Right */}
-            <NavigationControls
-              onRotateLeft={handleRotateLeft}
-              onRotateRight={handleRotateRight}
-              onZoomIn={handleZoomIn}
-              onZoomOut={handleZoomOut}
-              onResetView={handleResetView}
-            />
           </div>
         )}
 
+        {/* Unified Sidebar - Desktop only */}
+        {!deviceCapabilities.isMobile && (
+          <UnifiedSidebar
+            isOpen={drawerOpen}
+            onClose={handleCloseDrawer}
+            onToggleSidebar={handleToggleExploreDrawer}
+          />
+        )}
 
-        {/* Clean Explore Suites Sidebar */}
-        <ExploreUnitsPanel
-          isOpen={drawerOpen}
-          onClose={handleCloseDrawer}
-          onRequest={(unitKey, unitName) => {
-            setRequestUnitKey(unitKey);
-            setRequestUnitName(unitName);
-            setShowSingleUnitRequest(true);
-          }}
-          onExpandFloorplan={handleExpandFloorplan}
-          onCloseFilters={() => {
-            setIsFilterDropdownOpen(false);
-            setIsTopFilterDropdownOpen(false);
-          }}
-        />
+
+        {/* Mobile Explore Panel (keep old panel for mobile) */}
+        {deviceCapabilities.isMobile && (
+          <ExploreUnitsPanel
+            isOpen={drawerOpen}
+            onClose={handleCloseDrawer}
+            onRequest={(unitKey, unitName) => {
+              setRequestUnitKey(unitKey);
+              setRequestUnitName(unitName);
+              setShowSingleUnitRequest(true);
+            }}
+            onExpandFloorplan={handleExpandFloorplan}
+            onCloseFilters={() => {
+              setIsFilterDropdownOpen(false);
+              setIsTopFilterDropdownOpen(false);
+            }}
+          />
+        )}
 
         
         {/* Dynamic Details Sidebar */}
