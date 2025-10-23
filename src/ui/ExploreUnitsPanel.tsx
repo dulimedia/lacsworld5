@@ -15,7 +15,8 @@ import {
   Share,
   MessageCircle,
   Sliders,
-  Home
+  Home,
+  Send
 } from 'lucide-react';
 import { useExploreState, type UnitRecord } from '../store/exploreState';
 import { useGLBState } from '../store/glbState';
@@ -56,7 +57,6 @@ interface ExploreUnitsPanelProps {
   onExpandFloorplan?: (floorplanUrl: string, unitName: string, unitData?: any) => void;
   onCloseFilters?: () => void;
   pageType?: 'main' | 'events' | 'stages';
-  sidebarMode?: boolean;
 }
 
 interface BuildingNodeProps {
@@ -65,8 +65,6 @@ interface BuildingNodeProps {
   onToggleExpanded: () => void;
   onBuildingClick: () => void;
   onUnitSelect?: (unitData: any) => void;
-  expandedFloors: Record<string, boolean>;
-  onToggleFloor: (floor: string) => void;
 }
 
 interface FloorNodeProps {
@@ -272,25 +270,21 @@ const FloorNode: React.FC<FloorNodeProps> = ({
         </div>
       </div>
       
-      <div 
-        className="bg-gray-25 overflow-hidden transition-all duration-300 ease-in-out"
-        style={{
-          maxHeight: isExpanded ? `${visibleUnits.length * 60}px` : '0px',
-          opacity: isExpanded ? 1 : 0
-        }}
-      >
-        {visibleUnits.map(unit => (
-          <UnitRow
-            key={unit.unit_key}
-            unit={unit}
-            isSelected={selectedUnitKey === unit.unit_key}
-            isHovered={hoveredUnitKey === unit.unit_key}
-            isDimmed={false}
-            onHover={handleUnitHover}
-            onSelect={handleUnitSelect}
-          />
-        ))}
-      </div>
+      {isExpanded && (
+        <div className="bg-gray-25">
+          {visibleUnits.map(unit => (
+            <UnitRow
+              key={unit.unit_key}
+              unit={unit}
+              isSelected={selectedUnitKey === unit.unit_key}
+              isHovered={hoveredUnitKey === unit.unit_key}
+              isDimmed={false}
+              onHover={handleUnitHover}
+              onSelect={handleUnitSelect}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 };
@@ -300,11 +294,10 @@ const BuildingNode: React.FC<BuildingNodeProps> = ({
   isExpanded,
   onToggleExpanded,
   onBuildingClick,
-  onUnitSelect,
-  expandedFloors,
-  onToggleFloor
+  onUnitSelect
 }) => {
   const { getFloorList, getUnitsByFloor, getUnitData } = useExploreState();
+  const [expandedFloors, setExpandedFloors] = useState<Record<string, boolean>>({});
   
   // Get filter state from parent component context
   const filters = useExploreState(state => ({
@@ -354,6 +347,26 @@ const BuildingNode: React.FC<BuildingNodeProps> = ({
     return { filteredCount: filtered, totalCount: total };
   }, [building, floors, getUnitsByFloor, getUnitData, filters]);
 
+  const toggleFloorExpanded = (floor: string) => {
+    setExpandedFloors(prev => {
+      const floorKey = `${building}/${floor}`;
+      const isCurrentlyExpanded = prev[floor];
+      
+      if (isCurrentlyExpanded) {
+        return { ...prev, [floor]: false };
+      } else {
+        const buildingPrefix = `${building}/`;
+        const newState: Record<string, boolean> = {};
+        Object.keys(prev).forEach(key => {
+          if (!key.startsWith(buildingPrefix)) {
+            newState[key] = prev[key];
+          }
+        });
+        return { ...newState, [floor]: true };
+      }
+    });
+  };
+
   const handleFloorClick = (floor: string) => {
     const { selectFloor } = useGLBState.getState();
     selectFloor(building, floor);
@@ -398,7 +411,7 @@ const BuildingNode: React.FC<BuildingNodeProps> = ({
               building={building}
               floor={floor}
               isExpanded={!!expandedFloors[floor]}
-              onToggleExpanded={() => onToggleFloor(floor)}
+              onToggleExpanded={() => toggleFloorExpanded(floor)}
               onFloorClick={() => handleFloorClick(floor)}
               onUnitSelect={onUnitSelect}
             />
@@ -415,7 +428,6 @@ export const ExploreUnitsPanel: React.FC<ExploreUnitsPanelProps> = ({
   onRequest,
   onExpandFloorplan,
   onCloseFilters,
-  sidebarMode = false,
   pageType = 'main'
 }) => {
   const exploreState = useExploreState();
@@ -437,10 +449,8 @@ export const ExploreUnitsPanel: React.FC<ExploreUnitsPanelProps> = ({
   
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedBuildings, setExpandedBuildings] = useState<Record<string, boolean>>({});
-  const [expandedFloors, setExpandedFloors] = useState<Record<string, boolean>>({});
   const [tree, setTree] = useState<TreeNode | null>(null);
   const [expandedPaths, setExpandedPaths] = useState<Record<string, boolean>>({});
-  const [collapsingPaths, setCollapsingPaths] = useState<Record<string, boolean>>({});
   
   // Set fixed min/max range for better user experience  
   const { actualMinSqft, actualMaxSqft } = useMemo(() => {
@@ -473,12 +483,12 @@ export const ExploreUnitsPanel: React.FC<ExploreUnitsPanelProps> = ({
   } | null>(null);
   
   // Card navigation state
-  const [currentView, setCurrentView] = useState<'explore' | 'details'>('explore');
+  const [currentView, setCurrentView] = useState<'explore' | 'details' | 'request'>('explore');
   const [selectedUnitDetails, setSelectedUnitDetails] = useState<any>(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const detailsContentRef = useRef<HTMLDivElement>(null);
   
-  // Unit request modal state
+  // Unit request modal state (for single unit from details view)
   const [showUnitRequestModal, setShowUnitRequestModal] = useState(false);
   const [requestFormData, setRequestFormData] = useState({
     senderName: '',
@@ -487,6 +497,11 @@ export const ExploreUnitsPanel: React.FC<ExploreUnitsPanelProps> = ({
     message: ''
   });
   const [isSendingRequest, setIsSendingRequest] = useState(false);
+  
+  // Multi-unit request state (for request suites view)
+  const [selectedRequestUnits, setSelectedRequestUnits] = useState(new Set<string>());
+  const [requestExpandedBuildings, setRequestExpandedBuildings] = useState(new Set<string>());
+  const [requestExpandedFloors, setRequestExpandedFloors] = useState(new Set<string>());
   
   // Function to send individual unit request via EmailJS
   const sendUnitRequest = async () => {
@@ -727,68 +742,20 @@ export const ExploreUnitsPanel: React.FC<ExploreUnitsPanelProps> = ({
   
   const buildings = getBuildingList();
   
-  // Toggle tree path expansion - accordion behavior with staggered animations
+  // Toggle tree path expansion - simple toggle behavior
   const toggleExpand = (path: string) => {
     setExpandedPaths(prev => {
       const isCurrentlyExpanded = prev[path];
       
-      if (isCurrentlyExpanded) {
-        // Closing the folder
-        console.log(`🔽 Collapsing path: ${path}`);
+      if (!isCurrentlyExpanded) {
+        // Opening a folder - just set it to expanded
+        return { ...prev, [path]: true };
+      } else {
+        // Closing the folder - clear selections and toggle it off
         const { clearSelection } = useGLBState.getState();
         clearSelection();
+        
         return { ...prev, [path]: false };
-      } else {
-        // Opening a folder - mark siblings as collapsing first
-        console.log(`🔼 Expanding path: ${path}, collapsing siblings`);
-        
-        const pathParts = path.split('/');
-        const isBuilding = pathParts.length === 2;
-        const isFloor = pathParts.length === 3;
-        
-        const pathsToCollapse: string[] = [];
-        
-        if (isBuilding) {
-          Object.keys(prev).forEach(key => {
-            const keyParts = key.split('/');
-            if ((keyParts.length === 2 && key !== path) || keyParts.length === 3) {
-              if (prev[key]) pathsToCollapse.push(key);
-            }
-          });
-        } else if (isFloor) {
-          const buildingPath = pathParts.slice(0, 2).join('/');
-          Object.keys(prev).forEach(key => {
-            const keyParts = key.split('/');
-            if (keyParts.length === 3 && key !== path) {
-              const keyBuilding = keyParts.slice(0, 2).join('/');
-              if (keyBuilding === buildingPath && prev[key]) {
-                pathsToCollapse.push(key);
-              }
-            }
-          });
-        }
-        
-        if (pathsToCollapse.length > 0) {
-          // Mark paths as collapsing
-          const collapsingState: Record<string, boolean> = {};
-          pathsToCollapse.forEach(p => collapsingState[p] = true);
-          setCollapsingPaths(collapsingState);
-          
-          // Close collapsing paths immediately
-          const newState = { ...prev };
-          pathsToCollapse.forEach(p => newState[p] = false);
-          
-          // After collapse animation (150ms), expand the new path
-          setTimeout(() => {
-            setCollapsingPaths({});
-            setExpandedPaths(current => ({ ...current, [path]: true }));
-          }, 150);
-          
-          return newState;
-        } else {
-          // No siblings to collapse, expand immediately
-          return { ...prev, [path]: true };
-        }
       }
     });
   };
@@ -811,28 +778,16 @@ export const ExploreUnitsPanel: React.FC<ExploreUnitsPanelProps> = ({
     setExpandedBuildings(prev => {
       const isCurrentlyExpanded = prev[building];
       if (isCurrentlyExpanded) {
-        console.log(`🔽 Collapsing building: ${building}`);
         return { ...prev, [building]: false };
       } else {
-        console.log(`🔼 Expanding building: ${building}, collapsing all others`);
         const newState = Object.keys(prev).reduce((acc, key) => ({...acc, [key]: false}), {} as Record<string, boolean>);
-        setExpandedFloors({});
         return { ...newState, [building]: true };
       }
     });
-  };
-
-  const toggleFloorExpanded = (floor: string) => {
-    setExpandedFloors(prev => {
-      const isCurrentlyExpanded = prev[floor];
-      if (isCurrentlyExpanded) {
-        console.log(`🔽 Collapsing floor: ${floor}`);
-        return {};
-      } else {
-        console.log(`🔼 Expanding floor: ${floor}, collapsing all others`);
-        return { [floor]: true };
-      }
-    });
+    
+    if (!expandedBuildings[building]) {
+      setExpandedFloors({});
+    }
   };
 
   const handleBuildingClick = (building: string) => {
@@ -1066,10 +1021,17 @@ export const ExploreUnitsPanel: React.FC<ExploreUnitsPanelProps> = ({
               
               // Slide to details view instead of showing 3D popup
               
-              // Try to get fresh unit data using the normalized unit name
-              const freshUnitData = getUnitData(normalizedUnitName);
+              // Use the actualUnitKey that was already looked up (line 884-900)
+              // This is the key that successfully found the unitData
+              const finalUnitData = unitData || getUnitData(actualUnitKey);
               
-              const finalUnitData = unitData || freshUnitData;
+              // Add console log to debug
+              console.log('🔍 Setting suite details:', {
+                actualUnitKey,
+                normalizedUnitName,
+                hasUnitData: !!unitData,
+                finalUnitData
+              });
               
               setSelectedUnitDetails(finalUnitData);
               setCurrentView('details');
@@ -1156,16 +1118,8 @@ export const ExploreUnitsPanel: React.FC<ExploreUnitsPanelProps> = ({
               </div>
             </div>
             
-            <div 
-              className="bg-gray-50 overflow-hidden transition-all ease-in-out"
-              style={{
-                maxHeight: expanded ? '400px' : '0px',
-                opacity: expanded ? 1 : 0,
-                transitionDuration: collapsingPaths[nodePath] ? '150ms' : '200ms'
-              }}
-            >
-              {node.children && (
-              <div className="max-h-64 overflow-y-auto">
+            {expanded && node.children && (
+              <div className="bg-gray-50 max-h-64 overflow-y-auto">
                 {node.children
                   .sort((a, b) => {
                     // Special sorting for Tower Building units
@@ -1215,8 +1169,7 @@ export const ExploreUnitsPanel: React.FC<ExploreUnitsPanelProps> = ({
                   )
                 )}
               </div>
-              )}
-            </div>
+            )}
           </div>
         );
       } else {
@@ -1270,20 +1223,8 @@ export const ExploreUnitsPanel: React.FC<ExploreUnitsPanelProps> = ({
               </div>
             </div>
             
-            <div 
-              className="bg-gray-100 overflow-hidden transition-all ease-in-out"
-              style={{
-                maxHeight: expanded ? '300px' : '0px',
-                opacity: expanded ? 1 : 0,
-                paddingLeft: expanded ? '0.5rem' : '0',
-                paddingRight: expanded ? '0.5rem' : '0',
-                paddingTop: expanded ? '0.25rem' : '0',
-                paddingBottom: expanded ? '0.25rem' : '0',
-                transitionDuration: collapsingPaths[nodePath] ? '150ms' : '200ms'
-              }}
-            >
-              {node.children && (
-              <div>
+            {expanded && node.children && (
+              <div className="bg-gray-100 px-2 py-1">
                 <div className={`gap-1 text-xs ${
                   parentPath[0] === "Stages" && node.name === "Production" 
                     ? "flex flex-col" 
@@ -1318,8 +1259,7 @@ export const ExploreUnitsPanel: React.FC<ExploreUnitsPanelProps> = ({
                   )}
                 </div>
               </div>
-              )}
-            </div>
+            )}
           </div>
         );
       }
@@ -1329,14 +1269,6 @@ export const ExploreUnitsPanel: React.FC<ExploreUnitsPanelProps> = ({
   // Detect if we're on mobile for positioning
   const deviceCapabilities = useMemo(() => detectDevice(), []);
   const isMobile = deviceCapabilities.isMobile;
-
-  if (sidebarMode) {
-    return (
-      <div className="h-full overflow-y-auto">
-        {renderContent()}
-      </div>
-    );
-  }
 
   return (
     <div 
@@ -1377,16 +1309,42 @@ export const ExploreUnitsPanel: React.FC<ExploreUnitsPanelProps> = ({
         isOpen ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
       }`}>
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <h2 className="text-xs font-semibold text-gray-900">
-              {currentView === 'details' ? 'Suite Details' : 'Explore Suites'}
-            </h2>
-            {currentView === 'explore' && (
-              <span className="text-xs text-gray-500">
-                Showing {totalFilteredUnits} suite{totalFilteredUnits !== 1 ? 's' : ''}
-              </span>
-            )}
-          </div>
+          {/* Tab/Toggle UI for Explore vs Request when not in details view */}
+          {currentView !== 'details' ? (
+            <div className="flex items-center space-x-1 bg-gray-100 rounded-lg p-0.5">
+              <button
+                onClick={() => setCurrentView('explore')}
+                className={`px-3 py-1 rounded-md text-xs font-semibold transition-all duration-200 ${
+                  currentView === 'explore'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Explore Suites
+              </button>
+              <button
+                onClick={() => setCurrentView('request')}
+                className={`px-3 py-1 rounded-md text-xs font-semibold transition-all duration-200 ${
+                  currentView === 'request'
+                    ? 'bg-white text-orange-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Request Suites
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center space-x-2">
+              <h2 className="text-xs font-semibold text-gray-900">Suite Details</h2>
+            </div>
+          )}
+          
+          {currentView === 'explore' && (
+            <span className="text-xs text-gray-500">
+              Showing {totalFilteredUnits} suite{totalFilteredUnits !== 1 ? 's' : ''}
+            </span>
+          )}
+          
           <button
             onClick={onClose}
             className="flex items-center justify-center w-4 h-4 bg-gray-100 hover:bg-gray-200 
@@ -1400,9 +1358,19 @@ export const ExploreUnitsPanel: React.FC<ExploreUnitsPanelProps> = ({
 
       {/* Sliding Content Container */}
       <div className="flex-1 relative overflow-hidden">
+        {console.log('🎬 SLIDING TRANSFORM:', { 
+          currentView, 
+          transform: currentView === 'explore' ? '0%' : currentView === 'details' ? '-100%' : '-200%'
+        })}
         <div 
           className="flex h-full transition-transform duration-500 ease-in-out"
-          style={{ transform: `translateX(${currentView === 'details' ? '-100%' : '0%'})` }}
+          style={{ 
+            transform: `translateX(${
+              currentView === 'explore' ? '0%' : 
+              currentView === 'details' ? '-100%' : 
+              '-200%'
+            })` 
+          }}
         >
           {/* Explore Units Panel - Left side */}
           <div className="w-full flex-shrink-0 flex flex-col">
@@ -1504,206 +1472,477 @@ export const ExploreUnitsPanel: React.FC<ExploreUnitsPanelProps> = ({
             </div>
           </div>
 
-        {/* Details Panel - Right side */}
-        <div 
-          className="w-full flex-shrink-0 overflow-y-auto"
-          ref={detailsContentRef}
-          onScroll={(e) => {
-            const target = e.target as HTMLDivElement;
-            setShowBackToTop(target.scrollTop > 200);
-          }}
-        >
-          <div className="h-full bg-white">
-            {/* Details Header */}
-            <div className="bg-white border-b border-gray-200 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <button
-                    onClick={() => setCurrentView('explore')}
-                    className="flex items-center justify-center w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors duration-150"
-                    title="Back to Explore"
-                  >
-                    <ArrowLeft size={14} className="text-gray-600" />
-                  </button>
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900">
-                      {selectedUnitDetails?.unit_name || 'Unit Details'}
-                    </h2>
-                    <p className="text-sm text-gray-500">
-                      {selectedUnitDetails?.building} • {selectedUnitDetails?.floor}
-                    </p>
+          {/* Details Panel - Middle */}
+          <div 
+            className="w-full flex-shrink-0 overflow-y-auto"
+            ref={detailsContentRef}
+            onScroll={(e) => {
+              const target = e.target as HTMLDivElement;
+              setShowBackToTop(target.scrollTop > 200);
+            }}
+          >
+            <div className="h-full bg-white">
+              {console.log('🔍 DETAILS PANEL RENDERING:', { currentView, selectedUnitDetails })}
+              {/* Details Header */}
+              <div className="bg-white border-b border-gray-200 px-6 py-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <button
+                      onClick={() => setCurrentView('explore')}
+                      className="flex items-center justify-center w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors duration-150"
+                      title="Back to Explore"
+                    >
+                      <ArrowLeft size={14} className="text-gray-600" />
+                    </button>
+                    <div>
+                      <h2 className="text-lg font-semibold text-gray-900">
+                        {selectedUnitDetails?.unit_name || 'Unit Details'}
+                      </h2>
+                      <p className="text-sm text-gray-500">
+                        {selectedUnitDetails?.building} • {selectedUnitDetails?.floor}
+                      </p>
+                    </div>
                   </div>
+                </div>
+              </div>
+
+              {/* Details Content */}
+              <div className="p-6 space-y-6 relative">
+                {/* Back to Top Button */}
+                {showBackToTop && (
+                  <button
+                    onClick={() => {
+                      detailsContentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    className="fixed bottom-24 right-6 bg-blue-500 hover:bg-blue-600 text-white p-3 rounded-full shadow-lg transition-all duration-200 z-50 flex items-center justify-center"
+                    title="Back to Top"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                    </svg>
+                  </button>
+                )}
+
+                {/* Unit Info Card */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-gray-500">Suite Number</p>
+                      <p className="text-lg font-semibold text-gray-900">
+                        {selectedUnitDetails?.unit_name || 'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-500">Status</p>
+                      <div className="flex items-center space-x-2 mt-1">
+                        {selectedUnitDetails?.status === true ? (
+                          <Circle size={8} className="text-green-500 fill-current" />
+                        ) : (
+                          <Square size={8} className="text-red-500 fill-current" />
+                        )}
+                        <span className={`text-sm font-medium ${
+                          selectedUnitDetails?.status === true 
+                            ? 'text-green-600' 
+                            : 'text-red-600'
+                        }`}>
+                          {selectedUnitDetails?.status === true ? 'Available' : 'Unavailable'}
+                        </span>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-500">Area</p>
+                      <p className="text-lg font-semibold text-gray-900">
+                        {selectedUnitDetails?.area_sqft 
+                          ? `${selectedUnitDetails.area_sqft.toLocaleString()} RSF`
+                          : 'N/A'
+                        }
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-500">Type</p>
+                      <p className="text-lg font-semibold text-gray-900">
+                        {selectedUnitDetails?.unit_type || 'Suite'}
+                      </p>
+                    </div>
+                    {/* Only show kitchen info if unit actually has a kitchen */}
+                    {(() => {
+                      const kitchenSize = selectedUnitDetails?.kitchen_size;
+                      
+                      // Don't show kitchen section at all if no kitchen
+                      if (!kitchenSize || kitchenSize === 'None' || kitchenSize === 'N/A') {
+                        return null;
+                      }
+                      
+                      return (
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Kitchen</p>
+                          <p className="text-lg font-semibold text-gray-900">
+                            {kitchenSize === 'Full' ? 'Full Kitchen' :
+                             kitchenSize === 'Compact' ? 'Compact Kitchen' :
+                             kitchenSize === 'Kitchenette' ? 'Kitchenette' :
+                             kitchenSize}
+                          </p>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* Floorplan Section - Only show if unit is NOT in "Other" category */}
+                {selectedUnitDetails?.building !== 'Other' && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold text-gray-900">Floorplan</h3>
+                    </div>
+                    
+                    {/* Floorplan Viewer */}
+                    {selectedUnitDetails ? (
+                      <>
+                        {console.log('📋 ExploreUnitsPanel: Rendering FloorplanViewer for:', {
+                          unit: selectedUnitDetails.unit_name,
+                          floorplan_url: selectedUnitDetails.floorplan_url,
+                          floorPlanUrl: selectedUnitDetails.floorPlanUrl,
+                          building: selectedUnitDetails.building,
+                          floor: selectedUnitDetails.floor
+                        })}
+                        <FloorplanViewer
+                          floorplanUrl={selectedUnitDetails.floorplan_url || selectedUnitDetails.floorPlanUrl || null}
+                          unitName={selectedUnitDetails.unit_name}
+                          onExpand={onExpandFloorplan}
+                          unitData={selectedUnitDetails}
+                        />
+                      </>
+                    ) : (
+                      <div className="text-center text-gray-500 p-4">
+                        Select a unit to view floorplan
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="space-y-3">
+                  {selectedUnitDetails?.status === true && (
+                    <button
+                      className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 px-4 rounded-lg transition-colors duration-150 flex items-center justify-center space-x-2"
+                      onClick={() => {
+                        setShowUnitRequestModal(true);
+                      }}
+                    >
+                      <MessageCircle size={16} />
+                      <span>Lease this space</span>
+                    </button>
+                  )}
+                  
+                  <button
+                    className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg transition-colors duration-150 flex items-center justify-center space-x-2"
+                    onClick={() => {
+                      const shareUrl = `${window.location.origin}${window.location.pathname}?sel=${selectedUnitDetails?.unit_key}`;
+                      const shareData = {
+                        title: `Unit ${selectedUnitDetails?.unit_name} - ${selectedUnitDetails?.building}`,
+                        text: `Check out this unit: ${selectedUnitDetails?.unit_name} in ${selectedUnitDetails?.building}`,
+                        url: shareUrl
+                      };
+
+                      // Check if Web Share API is supported
+                      if (navigator.share) {
+                        navigator.share(shareData)
+                          .catch(() => {});
+                      } else {
+                        // Fallback for browsers that don't support Web Share API
+                        navigator.clipboard.writeText(shareUrl)
+                          .then(() => {
+                            // Show temporary feedback
+                            const button = event.target.closest('button');
+                            const originalText = button.innerHTML;
+                            button.innerHTML = '<span class="text-sm">Link Copied!</span>';
+                            setTimeout(() => {
+                              button.innerHTML = originalText;
+                            }, 2000);
+                          })
+                          .catch(() => {
+                            // Failed to copy link
+                          });
+                      }
+                    }}
+                  >
+                    <Share size={16} />
+                    <span>Share Suite</span>
+                  </button>
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Details Content */}
-            <div className="p-6 space-y-6 relative">
-              {/* Back to Top Button */}
-              {showBackToTop && (
-                <button
-                  onClick={() => {
-                    detailsContentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className="fixed bottom-24 right-6 bg-blue-500 hover:bg-blue-600 text-white p-3 rounded-full shadow-lg transition-all duration-200 z-50 flex items-center justify-center"
-                  title="Back to Top"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                  </svg>
-                </button>
-              )}
-
-              {/* Unit Info Card */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Suite Number</p>
-                    <p className="text-lg font-semibold text-gray-900">
-                      {selectedUnitDetails?.unit_name || 'N/A'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Status</p>
-                    <div className="flex items-center space-x-2 mt-1">
-                      {selectedUnitDetails?.status === true ? (
-                        <Circle size={8} className="text-green-500 fill-current" />
-                      ) : (
-                        <Square size={8} className="text-red-500 fill-current" />
-                      )}
-                      <span className={`text-sm font-medium ${
-                        selectedUnitDetails?.status === true 
-                          ? 'text-green-600' 
-                          : 'text-red-600'
-                      }`}>
-                        {selectedUnitDetails?.status === true ? 'Available' : 'Unavailable'}
-                      </span>
+          {/* Request Suites Panel - Right side */}
+          <div className="w-full flex-shrink-0 overflow-y-auto bg-white">
+            <div className="h-full">
+              {/* Request Panel Header */}
+              <div className="bg-white border-b border-gray-200 px-6 py-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <button
+                      onClick={() => setCurrentView('explore')}
+                      className="flex items-center justify-center w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors duration-150"
+                      title="Back to Explore"
+                    >
+                      <ArrowLeft size={14} className="text-gray-600" />
+                    </button>
+                    <div>
+                      <h2 className="text-lg font-semibold text-gray-900">Request Suites</h2>
+                      <p className="text-sm text-gray-500">Select multiple suites to request</p>
                     </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Area</p>
-                    <p className="text-lg font-semibold text-gray-900">
-                      {selectedUnitDetails?.area_sqft 
-                        ? `${selectedUnitDetails.area_sqft.toLocaleString()} RSF`
-                        : 'N/A'
-                      }
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Type</p>
-                    <p className="text-lg font-semibold text-gray-900">
-                      {selectedUnitDetails?.unit_type || 'Suite'}
-                    </p>
-                  </div>
-                  {/* Only show kitchen info if unit actually has a kitchen */}
-                  {(() => {
-                    const kitchenSize = selectedUnitDetails?.kitchen_size;
-                    
-                    // Don't show kitchen section at all if no kitchen
-                    if (!kitchenSize || kitchenSize === 'None' || kitchenSize === 'N/A') {
-                      return null;
-                    }
-                    
-                    return (
-                      <div>
-                        <p className="text-sm font-medium text-gray-500">Kitchen</p>
-                        <p className="text-lg font-semibold text-gray-900">
-                          {kitchenSize === 'Full' ? 'Full Kitchen' :
-                           kitchenSize === 'Compact' ? 'Compact Kitchen' :
-                           kitchenSize === 'Kitchenette' ? 'Kitchenette' :
-                           kitchenSize}
-                        </p>
-                      </div>
-                    );
-                  })()}
                 </div>
               </div>
 
-              {/* Floorplan Section - Only show if unit is NOT in "Other" category */}
-              {selectedUnitDetails?.building !== 'Other' && (
+              {/* Request Panel Content */}
+              <div className="p-6 space-y-6">
+                {/* Contact Information */}
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-lg text-gray-900">Contact Information</h3>
+                  <div className="grid grid-cols-1 gap-3">
+                    <input
+                      type="text"
+                      placeholder="Your Name *"
+                      value={requestFormData.senderName}
+                      onChange={(e) => setRequestFormData(prev => ({ ...prev, senderName: e.target.value }))}
+                      className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      required
+                    />
+                    <input
+                      type="email"
+                      placeholder="Your Email *"
+                      value={requestFormData.senderEmail}
+                      onChange={(e) => setRequestFormData(prev => ({ ...prev, senderEmail: e.target.value }))}
+                      className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      required
+                    />
+                    <input
+                      type="tel"
+                      placeholder="Phone Number"
+                      value={requestFormData.senderPhone}
+                      onChange={(e) => setRequestFormData(prev => ({ ...prev, senderPhone: e.target.value }))}
+                      className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Unit Selection */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-gray-900">Floorplan</h3>
+                    <h3 className="font-semibold text-lg text-gray-900">Select Units</h3>
+                    <span className="text-sm text-gray-600">
+                      {selectedRequestUnits.size} unit{selectedRequestUnits.size !== 1 ? 's' : ''} selected
+                    </span>
                   </div>
                   
-                  {/* Floorplan Viewer */}
-                  {selectedUnitDetails ? (
-                    <>
-                      {console.log('📋 ExploreUnitsPanel: Rendering FloorplanViewer for:', {
-                        unit: selectedUnitDetails.unit_name,
-                        floorplan_url: selectedUnitDetails.floorplan_url,
-                        floorPlanUrl: selectedUnitDetails.floorPlanUrl,
-                        building: selectedUnitDetails.building,
-                        floor: selectedUnitDetails.floor
-                      })}
-                      <FloorplanViewer
-                        floorplanUrl={selectedUnitDetails.floorplan_url || selectedUnitDetails.floorPlanUrl || null}
-                        unitName={selectedUnitDetails.unit_name}
-                        onExpand={onExpandFloorplan}
-                        unitData={selectedUnitDetails}
-                      />
-                    </>
-                  ) : (
-                    <div className="text-center text-gray-500 p-4">
-                      Select a unit to view floorplan
-                    </div>
-                  )}
+                  {/* Units tree with checkboxes */}
+                  <div className="border rounded-lg p-3 space-y-2 max-h-96 overflow-y-auto bg-gray-50">
+                    {buildings.map(building => {
+                      const floors = getFloorList(building);
+                      const isExpanded = requestExpandedBuildings.has(building);
+                      
+                      return (
+                        <div key={building} className="border rounded-lg bg-white">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newExpanded = new Set(requestExpandedBuildings);
+                              if (isExpanded) {
+                                newExpanded.delete(building);
+                              } else {
+                                newExpanded.add(building);
+                              }
+                              setRequestExpandedBuildings(newExpanded);
+                            }}
+                            className="w-full px-3 py-2 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                          >
+                            <div className="flex items-center gap-2">
+                              {isExpanded ? (
+                                <ChevronDown size={16} />
+                              ) : (
+                                <ChevronRight size={16} />
+                              )}
+                              <span className="font-medium text-sm">{building}</span>
+                            </div>
+                          </button>
+                          
+                          {isExpanded && (
+                            <div className="px-3 pb-2">
+                              {floors.map(floor => {
+                                const floorKey = `${building}/${floor}`;
+                                const isFloorExpanded = requestExpandedFloors.has(floorKey);
+                                const unitKeys = getUnitsByFloor(building, floor);
+                                const units = unitKeys.map(key => getUnitData(key)).filter(Boolean) as UnitRecord[];
+                                const availableUnits = units.filter(u => u.status === true);
+                                
+                                return (
+                                  <div key={floor} className="ml-4 mt-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const newExpanded = new Set(requestExpandedFloors);
+                                        if (isFloorExpanded) {
+                                          newExpanded.delete(floorKey);
+                                        } else {
+                                          newExpanded.add(floorKey);
+                                        }
+                                        setRequestExpandedFloors(newExpanded);
+                                      }}
+                                      className="flex items-center gap-2 mb-1 text-sm hover:text-blue-600"
+                                    >
+                                      {isFloorExpanded ? (
+                                        <ChevronDown size={14} />
+                                      ) : (
+                                        <ChevronRight size={14} />
+                                      )}
+                                      <span className="font-medium">{floor}</span>
+                                      <span className="text-gray-500 text-xs">({availableUnits.length} available)</span>
+                                    </button>
+                                    
+                                    {isFloorExpanded && (
+                                      <div className="ml-6 space-y-1">
+                                        {availableUnits.map(unit => {
+                                          const unitId = `${building}/${floor}/${unit.unit_name}`;
+                                          const isSelected = selectedRequestUnits.has(unitId);
+                                          
+                                          return (
+                                            <label 
+                                              key={unit.unit_key}
+                                              className="flex items-center gap-2 py-1 px-2 hover:bg-blue-50 rounded cursor-pointer"
+                                            >
+                                              <input
+                                                type="checkbox"
+                                                checked={isSelected}
+                                                onChange={() => {
+                                                  const newSelected = new Set(selectedRequestUnits);
+                                                  if (isSelected) {
+                                                    newSelected.delete(unitId);
+                                                  } else {
+                                                    newSelected.add(unitId);
+                                                  }
+                                                  setSelectedRequestUnits(newSelected);
+                                                }}
+                                                className="w-4 h-4 text-orange-500 border-gray-300 rounded focus:ring-orange-500"
+                                              />
+                                              <span className="text-sm">{unit.unit_name}</span>
+                                              {unit.area_sqft && (
+                                                <span className="text-xs text-gray-500">
+                                                  ({unit.area_sqft.toLocaleString()} sf)
+                                                </span>
+                                              )}
+                                            </label>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              )}
 
-              {/* Action Buttons */}
-              <div className="space-y-3">
-                {selectedUnitDetails?.status === true && (
-                  <button
-                    className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 px-4 rounded-lg transition-colors duration-150 flex items-center justify-center space-x-2"
-                    onClick={() => {
-                      setShowUnitRequestModal(true);
-                    }}
-                  >
-                    <MessageCircle size={16} />
-                    <span>Lease this space</span>
-                  </button>
-                )}
-                
+                {/* Message */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Additional Message
+                  </label>
+                  <textarea
+                    value={requestFormData.message}
+                    onChange={(e) => setRequestFormData(prev => ({ ...prev, message: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none"
+                    rows={4}
+                    placeholder="Tell us about your space requirements..."
+                  />
+                </div>
+
+                {/* Submit Button */}
                 <button
-                  className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg transition-colors duration-150 flex items-center justify-center space-x-2"
-                  onClick={() => {
-                    const shareUrl = `${window.location.origin}${window.location.pathname}?sel=${selectedUnitDetails?.unit_key}`;
-                    const shareData = {
-                      title: `Unit ${selectedUnitDetails?.unit_name} - ${selectedUnitDetails?.building}`,
-                      text: `Check out this unit: ${selectedUnitDetails?.unit_name} in ${selectedUnitDetails?.building}`,
-                      url: shareUrl
-                    };
+                  onClick={async () => {
+                    if (!requestFormData.senderName || !requestFormData.senderEmail) {
+                      alert('Please fill in your name and email address.');
+                      return;
+                    }
+                    
+                    if (selectedRequestUnits.size === 0) {
+                      alert('Please select at least one unit.');
+                      return;
+                    }
+                    
+                    setIsSendingRequest(true);
+                    
+                    try {
+                      // Load EmailJS if not already loaded
+                      if (!window.emailjs) {
+                        const script = document.createElement('script');
+                        script.src = 'https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js';
+                        document.head.appendChild(script);
+                        await new Promise(resolve => script.onload = resolve);
+                        window.emailjs.init('7v5wJOSuv1p_PkcU5');
+                      }
 
-                    // Check if Web Share API is supported
-                    if (navigator.share) {
-                      navigator.share(shareData)
-                        .catch(() => {});
-                    } else {
-                      // Fallback for browsers that don't support Web Share API
-                      navigator.clipboard.writeText(shareUrl)
-                        .then(() => {
-                          // Show temporary feedback
-                          const button = event.target.closest('button');
-                          const originalText = button.innerHTML;
-                          button.innerHTML = '<span class="text-sm">Link Copied!</span>';
-                          setTimeout(() => {
-                            button.innerHTML = originalText;
-                          }, 2000);
-                        })
-                        .catch(() => {
-                          // Failed to copy link
-                        });
+                      const recipientEmail = 'lacenterstudios3d@gmail.com';
+                      const selectedUnitsList = Array.from(selectedRequestUnits);
+                      
+                      const templateParams = {
+                        from_name: requestFormData.senderName,
+                        from_email: requestFormData.senderEmail,
+                        phone: requestFormData.senderPhone || 'Not provided',
+                        message: requestFormData.message || 'No additional message provided.',
+                        selected_units: selectedUnitsList.map(unit => `• ${unit}`).join('\n'),
+                        to_email: recipientEmail,
+                        reply_to: requestFormData.senderEmail
+                      };
+
+                      await window.emailjs.send(
+                        'service_q47lbr7',
+                        'template_0zeil8m',
+                        templateParams
+                      );
+
+                      setIsSendingRequest(false);
+                      alert('Request has been successfully sent!');
+                      
+                      // Reset form
+                      setSelectedRequestUnits(new Set());
+                      setRequestFormData({
+                        senderName: '',
+                        senderEmail: '',
+                        senderPhone: '',
+                        message: ''
+                      });
+                      setCurrentView('explore');
+                      
+                    } catch (error) {
+                      console.error('❌ Email sending failed:', error);
+                      setIsSendingRequest(false);
+                      alert(`Failed to send request. Please try again.`);
                     }
                   }}
+                  disabled={isSendingRequest || !requestFormData.senderName || !requestFormData.senderEmail || selectedRequestUnits.size === 0}
+                  className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 px-4 rounded-lg transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  <Share size={16} />
-                  <span>Share Suite</span>
+                  {isSendingRequest ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Send size={16} />
+                      Send Request for {selectedRequestUnits.size} Unit{selectedRequestUnits.size !== 1 ? 's' : ''}
+                    </>
+                  )}
                 </button>
               </div>
             </div>
           </div>
-        </div>
         </div>
       </div>
 
