@@ -51,7 +51,7 @@ function createWebGLRenderer(canvas: HTMLCanvasElement, tier: string): THREE.Web
   renderer.useLegacyLights = false;
   renderer.setClearColor(0x000000, 0);
   
-  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.enabled = !isMobile;
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.shadowMap.autoUpdate = true;
   
@@ -60,7 +60,7 @@ function createWebGLRenderer(canvas: HTMLCanvasElement, tier: string): THREE.Web
     context.getExtension('EXT_color_buffer_float');
   }
   
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2));
+  renderer.setPixelRatio(isMobile ? 1.0 : Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
   
   return renderer;

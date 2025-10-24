@@ -4,7 +4,7 @@ import { sanitizeTransparency } from './sanitizeTransparency';
 import { fixBounds } from './fixBounds';
 import { validateGeometry } from './validateGeometry';
 
-export function makeFacesBehave(root: THREE.Object3D, boostOpacity = false) {
+export function makeFacesBehave(root: THREE.Object3D, boostOpacity = false, isMobile = false) {
   console.log('🔧 Running makeFacesBehave diagnostic suite...');
   
   console.log('Step 1: Fixing mirrored geometry and normals...');
@@ -37,8 +37,14 @@ export function makeFacesBehave(root: THREE.Object3D, boostOpacity = false) {
       }
       
       if (m.side === THREE.DoubleSide) {
-        console.log(`✅ Keeping DoubleSide culling on: ${o.name || 'unnamed'} (prevents missing faces)`);
-        keptDoubleSide++;
+        if (isMobile) {
+          m.side = THREE.FrontSide;
+          switchedToFrontSide++;
+          console.log(`🔄 Mobile: Switched ${o.name || 'unnamed'} from DoubleSide to FrontSide (memory optimization)`);
+        } else {
+          console.log(`✅ Keeping DoubleSide culling on: ${o.name || 'unnamed'} (prevents missing faces)`);
+          keptDoubleSide++;
+        }
       }
       
       if (m.side === THREE.BackSide) {

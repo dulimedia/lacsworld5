@@ -5,6 +5,8 @@ export interface DeviceCapabilities {
   isAndroid: boolean;
   isSafari: boolean;
   isLowPowerDevice: boolean;
+  isUltraLowMemory: boolean;
+  deviceMemoryGB: number;
   maxTextureSize: number;
   supportsWebGL2: boolean;
   devicePixelRatio: number;
@@ -17,26 +19,33 @@ export const detectDevice = (): DeviceCapabilities => {
   const isMobile = isIOS || isAndroid || /Mobi|Mobile/i.test(userAgent);
   const isSafari = /Safari/.test(userAgent) && !/Chrome/.test(userAgent);
   
-  // Detect low power devices (older iOS devices, budget Android)
+  const nav = navigator as any;
+  const deviceMemoryGB = nav.deviceMemory || (isMobile ? 2 : 8);
+  
+  const isOlderIPhone = /iPhone (6|7|8|X|SE|11)/.test(userAgent);
+  const isUltraLowMemory = (deviceMemoryGB < 4) || (isMobile && isOlderIPhone);
+  
   const isLowPowerDevice = isMobile && (
-    /iPhone [1-9]|iPad[1-4]/.test(userAgent) || // Older iOS devices
-    /Android [1-6]/.test(userAgent) // Older Android versions
+    /iPhone [1-9]|iPad[1-4]/.test(userAgent) || 
+    /Android [1-6]/.test(userAgent) ||
+    isUltraLowMemory
   );
 
-  // Get WebGL capabilities
-  let maxTextureSize = 2048; // Conservative default
+  let maxTextureSize = isUltraLowMemory ? 1024 : 2048;
   let supportsWebGL2 = false;
   
   try {
     const canvas = document.createElement('canvas');
     const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
     if (gl) {
-      maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+      maxTextureSize = Math.min(gl.getParameter(gl.MAX_TEXTURE_SIZE), maxTextureSize);
       supportsWebGL2 = !!canvas.getContext('webgl2');
     }
   } catch (e) {
     console.warn('WebGL detection failed:', e);
   }
+
+  console.log(`📱 Device Memory: ${deviceMemoryGB}GB, Ultra-Low: ${isUltraLowMemory}, Mobile: ${isMobile}`);
 
   return {
     isMobile,
@@ -44,9 +53,11 @@ export const detectDevice = (): DeviceCapabilities => {
     isAndroid,
     isSafari,
     isLowPowerDevice,
+    isUltraLowMemory,
+    deviceMemoryGB,
     maxTextureSize,
     supportsWebGL2,
-    devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2) // Cap at 2 for performance
+    devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2)
   };
 };
 

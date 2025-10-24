@@ -5,7 +5,11 @@ import { makeFacesBehave } from '../utils/makeFacesBehave';
 import { fixInvertedFacesSelective } from '../utils/fixInvertedFacesSelective';
 import { generateSceneReport, printReport } from '../debug/MeshInspector';
 
-export function SingleEnvironmentMesh() {
+interface SingleEnvironmentMeshProps {
+  isMobile?: boolean;
+}
+
+export function SingleEnvironmentMesh({ isMobile = false }: SingleEnvironmentMeshProps = {}) {
   const others = useGLTF('/models/environment/others2.glb');
   const frame = useGLTF('/models/environment/frame-raw-14.glb');
   const roof = useGLTF('/models/environment/roof and walls.glb');
@@ -14,7 +18,7 @@ export function SingleEnvironmentMesh() {
   useEffect(() => {
     if (others.scene) {
       console.log('🔵 Processing Others2 model...');
-      makeFacesBehave(others.scene, true);
+      makeFacesBehave(others.scene, true, isMobile);
       
       let meshCount = 0;
       let shadowCount = 0;
@@ -57,7 +61,7 @@ export function SingleEnvironmentMesh() {
   useEffect(() => {
     if (frame.scene) {
       console.log('🔵 Processing Frame model...');
-      makeFacesBehave(frame.scene);
+      makeFacesBehave(frame.scene, false, isMobile);
       console.log('🔧 Running selective face fixer on Frame...');
       fixInvertedFacesSelective(frame.scene);
       console.log('✅ Frame configured with safe selective face fixing');
@@ -67,7 +71,7 @@ export function SingleEnvironmentMesh() {
   useEffect(() => {
     if (roof.scene) {
       console.log('🔵 Processing Roof model...');
-      makeFacesBehave(roof.scene);
+      makeFacesBehave(roof.scene, false, isMobile);
       
       let meshCount = 0;
       roof.scene.traverse((child) => {
@@ -95,7 +99,7 @@ export function SingleEnvironmentMesh() {
   useEffect(() => {
     if (stages.scene) {
       console.log('🔵 Processing Stages model...');
-      makeFacesBehave(stages.scene);
+      makeFacesBehave(stages.scene, false, isMobile);
       
       let meshCount = 0;
       stages.scene.traverse((child) => {

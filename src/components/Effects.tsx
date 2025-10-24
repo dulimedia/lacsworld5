@@ -22,6 +22,10 @@ export function Effects({ tier, enabled = true }: EffectsProps) {
     return null;
   }
 
+  if (isMobile) {
+    return null;
+  }
+
   return (
     <EffectComposer multisampling={0} disableNormalPass={true}>
       {/* N8AO disabled - was creating transparent reflection overlay */}
@@ -34,14 +38,12 @@ export function Effects({ tier, enabled = true }: EffectsProps) {
         denoiseKernel={4}
         luminanceInfluence={0.3}
       /> */}
-      {!isMobile && (
-        <Bloom
-          intensity={0.2}
-          luminanceThreshold={0.95}
-          luminanceSmoothing={0.9}
-          mipmapBlur
-        />
-      )}
+      <Bloom
+        intensity={0.2}
+        luminanceThreshold={0.95}
+        luminanceSmoothing={0.9}
+        mipmapBlur
+      />
       <ToneMapping mode={THREE.ACESFilmicToneMapping} exposure={tmPreset.exposure} />
     </EffectComposer>
   );
