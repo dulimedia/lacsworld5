@@ -6,16 +6,28 @@ import { fixInvertedFacesSelective } from '../utils/fixInvertedFacesSelective';
 import { generateSceneReport, printReport } from '../debug/MeshInspector';
 import { useThree } from '@react-three/fiber';
 
-export function SingleEnvironmentMesh() {
+interface SingleEnvironmentMeshProps {
+  tier: string;
+}
+
+export function SingleEnvironmentMesh({ tier }: SingleEnvironmentMeshProps) {
   const { gl } = useThree();
-  const others = useGLTF('/models/environment/others2.glb');
-  const frame = useGLTF('/models/environment/frame-raw-14.glb');
-  const roof = useGLTF('/models/environment/roof and walls.glb');
-  const stages = useGLTF('/models/environment/stages.glb');
+  const isMobile = tier.startsWith('mobile');
+  const isMobileLow = tier === 'mobile-low';
+  
+  const others = useGLTF('/models/environment/others2.glb', !isMobileLow);
+  const frame = useGLTF('/models/environment/frame-raw-14.glb', !isMobileLow);
+  const roof = useGLTF('/models/environment/roof and walls.glb', !isMobileLow);
+  const stages = useGLTF('/models/environment/stages.glb', !isMobileLow);
   
   const shadowsEnabled = gl && (gl as any).shadowMap?.enabled !== false;
 
   useEffect(() => {
+    if (isMobileLow) {
+      console.log('🔵 Mobile-low tier: Skipping environment models to save memory');
+      return;
+    }
+    
     if (others.scene) {
       console.log('🔵 Processing Others2 model...');
       makeFacesBehave(others.scene, true);
@@ -60,9 +72,11 @@ export function SingleEnvironmentMesh() {
       });
       console.log(`✅ Others2 configured: ${meshCount} meshes, ${shadowCount} shadow-enabled`);
     }
-  }, [others.scene]);
+  }, [others.scene, isMobileLow]);
 
   useEffect(() => {
+    if (isMobileLow) return;
+    
     if (frame.scene) {
       console.log('🔵 Processing Frame model...');
       makeFacesBehave(frame.scene);
@@ -70,9 +84,11 @@ export function SingleEnvironmentMesh() {
       fixInvertedFacesSelective(frame.scene);
       console.log('✅ Frame configured with safe selective face fixing');
     }
-  }, [frame.scene]);
+  }, [frame.scene, isMobileLow]);
 
   useEffect(() => {
+    if (isMobileLow) return;
+    
     if (roof.scene) {
       console.log('🔵 Processing Roof model...');
       makeFacesBehave(roof.scene);
@@ -101,9 +117,11 @@ export function SingleEnvironmentMesh() {
       });
       console.log(`✅ Roof configured: ${meshCount} meshes`);
     }
-  }, [roof.scene]);
+  }, [roof.scene, isMobileLow]);
 
   useEffect(() => {
+    if (isMobileLow) return;
+    
     if (stages.scene) {
       console.log('🔵 Processing Stages model...');
       makeFacesBehave(stages.scene);
@@ -132,7 +150,16 @@ export function SingleEnvironmentMesh() {
       });
       console.log(`✅ Stages configured: ${meshCount} meshes`);
     }
-  }, [stages.scene]);
+  }, [stages.scene, isMobileLow]);
+
+  if (isMobileLow) {
+    return (
+      <mesh position={[0, -1, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[500, 500]} />
+        <meshBasicMaterial color="#87CEEB" />
+      </mesh>
+    );
+  }
 
   return (
     <>
@@ -143,8 +170,3 @@ export function SingleEnvironmentMesh() {
     </>
   );
 }
-
-useGLTF.preload('/models/environment/others2.glb');
-useGLTF.preload('/models/environment/frame-raw-14.glb');
-useGLTF.preload('/models/environment/roof and walls.glb');
-useGLTF.preload('/models/environment/stages.glb');

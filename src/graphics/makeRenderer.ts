@@ -37,12 +37,15 @@ async function smokeTestWebGPU(renderer: any): Promise<boolean> {
 
 function createWebGLRenderer(canvas: HTMLCanvasElement, tier: string): THREE.WebGLRenderer {
   const isMobile = tier.startsWith('mobile');
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
   
   const renderer = new THREE.WebGLRenderer({ 
     canvas, 
     antialias: !isMobile,
     powerPreference: isMobile ? 'low-power' : 'high-performance',
-    logarithmicDepthBuffer: true
+    logarithmicDepthBuffer: !isMobile,
+    preserveDrawingBuffer: !(isIOS && isMobile),
+    failIfMajorPerformanceCaveat: isIOS && isMobile
   });
   
   renderer.outputColorSpace = THREE.SRGBColorSpace;
