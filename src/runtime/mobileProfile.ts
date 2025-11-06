@@ -79,7 +79,8 @@ export const createRendererForMobile = (canvas: HTMLCanvasElement) => {
   });
   
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = useLowMemory ? THREE.NoToneMapping : THREE.ACESFilmicToneMapping;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
   
   if (useLowMemory) {
     renderer.shadowMap.enabled = true;

@@ -106,7 +106,8 @@ class CsvDataCache {
                   status: isAvailable,
                   unit_type: row.Type || row.Unit_Type || 'Commercial',
                   kitchen_size: row.Kitchen || row.Kitchen_Size || 'None',
-                  height: row.Height || ''
+                  height: row.Height || '',
+                  amenities: row.Amenities || 'Central Air'
                 };
                 
                 // Store with multiple key formats for flexible matching

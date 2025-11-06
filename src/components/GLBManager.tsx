@@ -10,6 +10,7 @@ import { useGLBState, type GLBNodeInfo } from '../store/glbState';
 import { useExploreState } from '../store/exploreState';
 import { SELECTED_MATERIAL_CONFIG, HOVERED_MATERIAL_CONFIG } from '../config/ghostMaterialConfig';
 import { logger } from '../utils/logger';
+import { PerfFlags } from '../perf/PerfFlags';
 
 interface GLBUnitProps {
   node: GLBNodeInfo;
@@ -160,11 +161,23 @@ const GLBInitializer: React.FC = () => {
 export const GLBManager: React.FC = () => {
   const { glbNodes } = useGLBState();
   
+  // Mobile: Only load first 10 units initially to prevent crash
+  const isMobile = PerfFlags.isMobile;
+  const nodesToRender = useMemo(() => {
+    const allNodes = Array.from(glbNodes.values());
+    
+    if (!isMobile) {
+      return allNodes; // Desktop: load all
+    }
+    
+    // Mobile: load only first 10 units
+    return allNodes.slice(0, 10);
+  }, [glbNodes, isMobile]);
   
   return (
     <group>
       <GLBInitializer />
-      {Array.from(glbNodes.values()).map(node => (
+      {nodesToRender.map(node => (
         <GLBUnit key={node.key} node={node} />
       ))}
     </group>

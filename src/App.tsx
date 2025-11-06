@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
+import ReactDOM from 'react-dom';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { CameraControls, Environment, Sky } from '@react-three/drei';
+import { CameraControls, Environment } from '@react-three/drei';
 import { detectDevice, getMobileOptimizedSettings } from './utils/deviceDetection';
 import { MobileMemoryManager } from './utils/memoryManager';
-import { MessageCircle, CheckCircle, Building, RotateCcw, RotateCw, ZoomIn, ZoomOut, Home } from 'lucide-react';
+import { RotateCcw, RotateCw, ZoomIn, ZoomOut, Home } from 'lucide-react';
 import { assetUrl } from './lib/assets';
 import { UnitWarehouse } from './components/UnitWarehouse';
 import { SingleEnvironmentMesh } from './components/SingleEnvironmentMesh';
@@ -16,36 +17,29 @@ import { GLBManager } from './components/GLBManager';
 import { UnitDetailsPopup } from './components/UnitDetailsPopup';
 import { SelectedUnitOverlay } from './components/SelectedUnitOverlay';
 import { CanvasClickHandler } from './components/CanvasClickHandler';
+import { CanvasResizeHandler } from './components/CanvasResizeHandler';
 import UnitRequestForm from './components/UnitRequestForm';
 import { Unit3DPopup } from './components/Unit3DPopup';
 import { Unit3DPopupOverlay } from './components/Unit3DPopupOverlay';
 import { SingleUnitRequestForm } from './components/SingleUnitRequestForm';
 import { FloorplanPopup } from './components/FloorplanPopup';
-import { NavigationControls } from './components/NavigationControls';
-import { FilterDropdown } from './components/FilterDropdown';
 import { HoverToast } from './ui/HoverToast';
-import { GroundPlane } from './components/GroundPlane';
-import { SimpleShadowDebug as ShadowDebugUI } from './components/SimpleShadowDebug';
-import { SceneDebugUI, SceneDebugSettings } from './components/SceneDebugUI';
 import { UnitHoverPreview } from './components/UnitHoverPreview';
 import { SafariErrorBoundary } from './components/SafariErrorBoundary';
 import { MobileLoadingProgress } from './components/MobileLoadingProgress';
-import { GodRays } from './scene/GodRays';
 import { Lighting } from './scene/Lighting';
 import { ShadowHelper } from './components/ShadowHelper';
-import { ShadowStressTest } from './components/ShadowStressTest';
 import { Effects } from './components/Effects';
-import { fitSunShadow } from './utils/fitSunShadow';
 import { lazy, Suspense } from 'react';
 const PathTracer = lazy(() => import('./components/pathtracer/PathTracer').then(m => ({ default: m.PathTracer })));
 import { useFaceDebugHotkey } from './hooks/useFaceDebugHotkey';
 import { useUnitStore } from './stores/useUnitStore';
+import { useSidebarState } from './ui/Sidebar/useSidebarState';
 import { useExploreState, buildUnitsIndex, type UnitRecord } from './store/exploreState';
 import { useGLBState } from './store/glbState';
 import { useCsvUnitData } from './hooks/useCsvUnitData';
 import { emitEvent, getTimestamp } from './lib/events';
 import { validateAllMaterials, setupRendererSafety } from './dev/MaterialValidator';
-import { runDuplicateAudit } from './dev/DuplicateAudit';
 import { logger } from './utils/logger';
 import { RootCanvas } from './ui/RootCanvas';
 import type { Tier } from './lib/graphics/tier';
@@ -96,7 +90,7 @@ function AdaptivePixelRatio() {
 }
 
 // Google Sheets CSV data source - Updated to new spreadsheet
-const CSV_URL = '/unit-data.csv';
+const CSV_URL = 'https://docs.google.com/spreadsheets/d/1ebIypJ8_c9Uv2NFqzYTh-qRP53lWFk3LIa5FL9AH9qo/export?format=csv';
 
 // Legacy HDRI Environment component - kept for fallback but not used by default
 const LegacyHDRIEnvironment = React.memo(() => {
@@ -401,25 +395,12 @@ function App() {
   // Debug logging for state changes
   
   const [showFullDetails, setShowFullDetails] = useState(false);
-  const [filterHoveredUnit, setFilterHoveredUnit] = useState<string | null>(null);
-  const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
-  const [isTopFilterDropdownOpen, setIsTopFilterDropdownOpen] = useState(false);
-  const [sphereData, setSphereData] = useState<{center: THREE.Vector3, radius: number} | null>(null);
   const [modelsLoading, setModelsLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [loadingPhase, setLoadingPhase] = useState('initializing'); // Track loading phase
   const [effectsReady, setEffectsReady] = useState(false); // Delay post-processing effects
   const [showRequestForm, setShowRequestForm] = useState(false);
-  const [popup3DPosition, setPopup3DPosition] = useState<{x: number, y: number} | undefined>();
   const [showSingleUnitRequest, setShowSingleUnitRequest] = useState(false);
-  const [shadowDebugOpen, setShadowDebugOpen] = useState(false);
-  const [sceneDebugSettings, setSceneDebugSettings] = useState<SceneDebugSettings>({
-    sunPosition: [-34.0, 78.5, 28.5],
-    sunIntensity: 6.2,
-    shadowBias: -0.0005,
-    shadowNormalBias: 0.70,
-    shadowMapSize: 4096
-  });
   const [renderTier, setRenderTier] = useState<Tier>(PerfFlags.tier === 'mobileLow' ? 'mobile-low' : 'desktop-high');
   const debugState = {
     tier: renderTier,
@@ -438,16 +419,6 @@ function App() {
     polygonOffsetRegex: 'slat|louver|mullion|trim|glass|window|panel',
   };
   
-  // Fixed shadow settings - optimized single light source
-  const FIXED_SHADOW_SETTINGS = {
-    shadowsEnabled: true,
-    shadowMapSize: 2048,
-    shadowIntensity: 3.0,
-    shadowRadius: 6,
-    shadowBias: -1, // Adjusted for cleaner shadows
-    showHelpers: false
-  };
-  
   // Refs to store Three.js instances for shadow settings callback
   const sceneRef = useRef<THREE.Scene | null>(null);
   const glRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -459,6 +430,7 @@ function App() {
     unitName: string;
     unitData?: any;
   } | null>(null);
+  const [isResizing, setIsResizing] = useState(false);
   
   // Camera controls ref for navigation
   const orbitControlsRef = useRef<CameraControls>(null);
@@ -598,7 +570,7 @@ function App() {
 
   // Aggressive fallback for mobile Safari - if loading takes too long, bail out
   useEffect(() => {
-    const timeout = deviceCapabilities.isMobile ? 15000 : 20000; // Give mobile more time
+    const timeout = deviceCapabilities.isMobile ? 8000 : 10000; // Faster timeout
     const fallbackTimer = setTimeout(() => {
       if (loadingPhase !== 'complete') {
         setLoadingProgress(100);
@@ -611,19 +583,28 @@ function App() {
     return () => clearTimeout(fallbackTimer);
   }, [deviceCapabilities, loadingPhase]);
 
-  // Handle WebGL context loss (common on mobile Safari)
+  // Handle WebGL context loss (common on mobile)
   useEffect(() => {
     const handleContextLost = (event: Event) => {
       event.preventDefault();
-      console.error('⚠️ WebGL context lost! Attempting recovery...');
+      logger.error('WebGL context lost - GPU memory overload. Reloading page...');
+      
+      // Show user-friendly message
       setModelsLoading(true);
+      setLoadingPhase('initializing');
+      
+      // Force reload after brief delay
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
     };
 
     const handleContextRestored = () => {
-      console.log('✅ WebGL context restored!');
+      logger.log('LOADING', '✅', 'WebGL context restored');
+      // Reload to ensure clean state
       setTimeout(() => {
         window.location.reload();
-      }, 1000);
+      }, 500);
     };
 
     const canvas = document.querySelector('canvas');
@@ -659,6 +640,29 @@ function App() {
       document.body.classList.remove('sidebar-open');
     }
   }, [drawerOpen]);
+
+  // Handle smooth transitions when sidebar width changes (floorplan expand/collapse)
+  const { floorPlanExpanded } = useSidebarState();
+  useEffect(() => {
+    console.log('🔄 Floorplan expanded state changed:', floorPlanExpanded);
+    
+    if (floorPlanExpanded) {
+      console.log('✅ Adding floorplan-expanded class');
+      document.body.classList.add('floorplan-expanded');
+    } else {
+      console.log('❌ Removing floorplan-expanded class');
+      document.body.classList.remove('floorplan-expanded');
+    }
+    
+    // Very brief visual indicator during transition start
+    // Canvas aspect ratio updates after transition completes
+    setIsResizing(true);
+    const timer = setTimeout(() => {
+      console.log('⏱️ Resize transition complete');
+      setIsResizing(false);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [floorPlanExpanded]);
 
   // Adjust camera when sidebar/drawer opens or closes
   useEffect(() => {
@@ -729,10 +733,16 @@ function App() {
         
         
         
+        // Ensure floor data is present - log warning if missing
+        const floorValue = unitData.floor?.toString() || '';
+        if (!floorValue && unitData.building === 'Tower Building') {
+          console.warn(`⚠️ Tower Building unit ${unitData.unit_name} has no floor data in CSV!`);
+        }
+        
         const unitRecord: UnitRecord = {
           unit_key: primaryKey,
           building: unitData.building || 'Unknown',
-          floor: unitData.floor?.toString() || '',
+          floor: floorValue,
           unit_name: unitData.unit_name || unitData.name,
           status: unitData.status === true, // Convert to boolean as expected by UnitStatus type
           area_sqft: unitData.area_sqft || undefined,
@@ -787,25 +797,6 @@ function App() {
     setShowFullDetails(false);
   };
 
-  const handleToggleFilterDropdown = (isOpen: boolean) => {
-    setIsFilterDropdownOpen(isOpen);
-    
-    // Close detail panel when opening filter dropdown
-    if (isOpen) {
-      setSelectedUnit(null);
-      setShowFullDetails(false);
-    }
-  };
-
-  const handleToggleTopFilterDropdown = (isOpen: boolean) => {
-    setIsTopFilterDropdownOpen(isOpen);
-    
-    // Close detail panel when opening filter dropdown
-    if (isOpen) {
-      setSelectedUnit(null);
-      setShowFullDetails(false);
-    }
-  };
   
   // Handle explore drawer toggle
   const handleToggleExploreDrawer = () => {
@@ -961,13 +952,13 @@ function App() {
       clearInterval(earlyProgress);
     }, 1000);
     
-    // Failsafe: force complete after 15 seconds on mobile (30s on desktop)
+    // Failsafe: force complete after 8 seconds on mobile (10s on desktop)
     const failsafeTimeout = setTimeout(() => {
       if (loadingPhase !== 'complete') {
         setLoadingPhase('complete');
         setLoadingProgress(100);
       }
-    }, deviceCapabilities.isMobile ? 15000 : 30000);
+    }, deviceCapabilities.isMobile ? 8000 : 10000);
     
     return () => {
       clearInterval(earlyProgress);
@@ -982,95 +973,91 @@ function App() {
     setLoadingPhase('loading-models');
     
     if (loaded >= total) {
-      setLoadingPhase('validating-materials');
-      setLoadingProgress(75);
+      setLoadingProgress(100);
+      setLoadingPhase('complete');
+      setEffectsReady(true);
       
-      // Material validation phase
+      // Hide loading screen immediately
       setTimeout(() => {
-        setLoadingPhase('compiling-shaders');
-        setLoadingProgress(85);
-        
-        // Shader compilation phase
-        setTimeout(() => {
-          setLoadingPhase('enabling-effects');
-          setLoadingProgress(95);
-          setEffectsReady(true);
-          
-          // Final phase - scene ready
-          setTimeout(() => {
-            setLoadingProgress(100);
-            setLoadingPhase('complete');
-            
-            // Hide loading screen after brief pause
-            setTimeout(() => {
-              setModelsLoading(false);
-            }, 300);
-          }, 500);
-        }, 800);
-      }, 600);
+        setModelsLoading(false);
+      }, 100);
     }
   }, []);
 
   return (
     <SafariErrorBoundary>
+      {/* Loading screen - Portaled to body for true full-screen centering */}
+      {modelsLoading && ReactDOM.createPortal(
+        <div className="fixed inset-0 flex justify-center items-center" 
+             style={{ 
+               background: 'white',
+               zIndex: 9999
+             }}>
+          <div className="text-center">
+            
+            {/* Pulsating GIF Logo */}
+            <div className="mb-8">
+              <div style={{
+                overflow: 'hidden',
+                maxWidth: '20rem',
+                margin: '0 auto 1rem'
+              }}>
+                <img 
+                  src={assetUrl('textures/333999.gif')} 
+                  alt="Loading" 
+                  className="w-full"
+                  style={{ 
+                    filter: 'none',
+                    animation: 'pulse 2s ease-in-out infinite',
+                    marginBottom: '-3px'
+                  }}
+                />
+              </div>
+            </div>
+            
+            {/* Loading Progress */}
+            <div className="mb-6">
+              <div className="bg-gray-200 rounded-full h-3 w-80 mx-auto overflow-hidden">
+                <div 
+                  className="bg-gray-600 h-full rounded-full transition-all duration-300 ease-out"
+                  style={{ width: `${loadingProgress}%` }}
+                ></div>
+              </div>
+              
+              {/* Loading Phase Text */}
+              <p className="text-gray-600 text-sm mt-3">
+                {loadingPhase === 'initializing' && 'Initializing...'}
+                {loadingPhase === 'loading-assets' && 'Loading assets...'}
+                {loadingPhase === 'loading-models' && `Loading models... ${loadingProgress}%`}
+                {loadingPhase === 'validating-materials' && 'Validating materials...'}
+                {loadingPhase === 'compiling-shaders' && 'Compiling shaders...'}
+                {loadingPhase === 'enabling-effects' && 'Enabling post-processing...'}
+                {loadingPhase === 'complete' && 'Ready!'}
+              </p>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       <div className="app-viewport">
         <div className="app-layout">
           <div 
             className="scene-shell"
           >
-{/* CSV loads in background - only show logo loading screen */}
-        
-        {modelsLoading && (
-          <div className="fixed inset-0 flex justify-center items-center z-50" 
-               style={{ 
-                 background: 'white',
-                 backdropFilter: 'none'
-               }}>
-            <div className="text-center">
-              
-              {/* Pulsating GIF Logo */}
-              <div className="mb-8">
-                <div style={{
-                  overflow: 'hidden',
-                  maxWidth: '20rem',
-                  margin: '0 auto 1rem'
-                }}>
-                  <img 
-                    src={assetUrl('textures/333999.gif')} 
-                    alt="Loading" 
-                    className="w-full"
-                    style={{ 
-                      filter: 'none',
-                      animation: 'pulse 2s ease-in-out infinite',
-                      marginBottom: '-3px'
-                    }}
-                  />
-                </div>
+            {isResizing && (
+              <div 
+                className="absolute inset-0 z-20 pointer-events-none"
+                style={{
+                  backdropFilter: 'blur(8px)',
+                  background: 'rgba(255, 255, 255, 0.3)',
+                  transition: 'opacity 150ms ease-in-out'
+                }}
+              >
+                {console.log('🌫️ Blur overlay rendering')}
               </div>
-              
-              {/* Loading Progress */}
-              <div className="mb-6">
-                <div className="bg-gray-200 rounded-full h-3 w-80 mx-auto overflow-hidden">
-                  <div 
-                    className="bg-gray-600 h-full rounded-full transition-all duration-300 ease-out"
-                    style={{ width: `${loadingProgress}%` }}
-                  ></div>
-                </div>
-                
-                {/* Loading Phase Text */}
-                <p className="text-gray-600 text-sm mt-3">
-                  {loadingPhase === 'initializing' && 'Initializing...'}
-                  {loadingPhase === 'loading-assets' && 'Loading assets...'}
-                  {loadingPhase === 'loading-models' && `Loading models... ${loadingProgress}%`}
-                  {loadingPhase === 'validating-materials' && 'Validating materials...'}
-                  {loadingPhase === 'compiling-shaders' && 'Compiling shaders...'}
-                  {loadingPhase === 'enabling-effects' && 'Enabling post-processing...'}
-                  {loadingPhase === 'complete' && 'Ready!'}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
+            )}
+{/* CSV loads in background - logo screen moved outside viewport */}
         
         {error && (
           <div className="absolute top-4 right-4 bg-yellow-100 border border-yellow-400 text-yellow-700 px-3 py-2 rounded-md text-sm z-10">
@@ -1082,7 +1069,7 @@ function App() {
         
         <RootCanvas
           shadows
-          camera={{ position: [-10, 10, -14], fov: 45, near: 0.1, far: 1000 }}
+          camera={{ position: [-10, 10, -14], fov: 45, near: 0.5, far: 2000 }}
           style={{
             width: '100%',
             height: '100%',
@@ -1124,8 +1111,8 @@ function App() {
               {/* Basic ambient light for mobile-low */}
               {tier === 'mobile-low' && (
                 <>
-                  <ambientLight intensity={1.2} />
-                  <directionalLight position={[-34, 78, 28]} intensity={3.5} />
+                  <ambientLight intensity={0.5} />
+                  <directionalLight position={[-34, 78, 28]} intensity={5.5} />
                 </>
               )}
               
@@ -1152,6 +1139,9 @@ function App() {
 
               {/* Canvas Click Handler for clearing selection */}
               <CanvasClickHandler />
+              
+              {/* Canvas Resize Handler for smooth sidebar transitions */}
+              <CanvasResizeHandler />
 
               {/* God Rays Effect - DISABLED for testing new environment mesh */}
               {/* {effectsReady && <GodRays />} */}
@@ -1164,8 +1154,8 @@ function App() {
               {/* Performance Governor - mobile FPS enforcement */}
               <PerformanceGovernorComponent />
 
-              {/* Post-processing Effects - disable when path tracer active */}
-              {effectsReady && debugState.ao && !debugState.pathtracer && (
+              {/* Post-processing Effects - disabled on mobile for performance */}
+              {effectsReady && !deviceCapabilities.isMobile && debugState.ao && !debugState.pathtracer && (
                 <Effects tier={renderTier} enabled={debugState.ao} />
               )}
 
@@ -1225,7 +1215,7 @@ function App() {
           <div 
             className={deviceCapabilities.isMobile 
               ? "fixed right-4 z-40" 
-              : "fixed bottom-6 left-1/2 -translate-x-1/2 z-40"}
+              : "fixed bottom-6 z-40 camera-controls-desktop -translate-x-1/2"}
             style={deviceCapabilities.isMobile ? {
               top: drawerOpen ? 'calc((100vh - 45vh) / 2)' : '50vh',
               transform: 'translateY(-50%)',

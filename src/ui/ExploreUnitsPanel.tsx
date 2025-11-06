@@ -1085,6 +1085,14 @@ export const ExploreUnitsPanel: React.FC<ExploreUnitsPanelProps> = ({
           <div key={nodePath} className="w-full bg-white bg-opacity-50 backdrop-blur-md border border-white border-opacity-50 rounded-lg shadow-sm overflow-hidden">
             <div
               className="px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors duration-150 border-b border-gray-100"
+              onMouseEnter={() => {
+                const { selectBuilding } = useGLBState.getState();
+                selectBuilding(node.name);
+              }}
+              onMouseLeave={() => {
+                const { clearSelection } = useGLBState.getState();
+                clearSelection();
+              }}
               onClick={() => {
                 const isCurrentlyExpanded = !!expandedPaths[nodePath];
                 if (isCurrentlyExpanded) {
@@ -1092,7 +1100,7 @@ export const ExploreUnitsPanel: React.FC<ExploreUnitsPanelProps> = ({
                   const { clearSelection } = useGLBState.getState();
                   clearSelection();
                 } else {
-                  // Expanding - skip building selection for all main folders to avoid mass highlighting
+                  // Expanding - do NOT select building (only hover does that)
                 }
                 toggleExpand(nodePath);
               }}

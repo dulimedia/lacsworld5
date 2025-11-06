@@ -8,6 +8,7 @@ import { useThree } from '@react-three/fiber';
 import { simplifyGeometryForMobile, shouldSimplifyMesh, optimizeMeshForMobile } from '../utils/simplifyGeometry';
 import { PerfFlags } from '../perf/PerfFlags';
 import { log } from '../utils/debugFlags';
+import { applyPolygonOffset } from '../materials/applyPolygonOffset';
 import type { GLTF } from 'three-stdlib';
 
 interface SingleEnvironmentMeshProps {
@@ -42,10 +43,11 @@ export function SingleEnvironmentMesh({ tier }: SingleEnvironmentMeshProps) {
   }));
   
   // For desktop, load all at once
-  const others = !isMobile ? useGLTF('/models/environment/others2.glb') : { scene: models.others.gltf?.scene };
-  const frame = !isMobile ? useGLTF('/models/environment/frame-raw-14.glb') : { scene: models.frame.gltf?.scene };
-  const roof = !isMobile ? useGLTF('/models/environment/roof and walls.glb') : { scene: models.roof.gltf?.scene };
-  const stages = !isMobile ? useGLTF('/models/environment/stages.glb') : { scene: models.stages.gltf?.scene };
+  // For mobile, only load minimal essential models (frame only)
+  const others = !isMobile ? useGLTF('/models/environment/others2.glb') : { scene: null };
+  const frame = useGLTF('/models/environment/frame-raw-14.glb'); // Always load frame (essential)
+  const roof = !isMobile ? useGLTF('/models/environment/roof and walls.glb') : { scene: null };
+  const stages = { scene: null }; // Skip stages entirely on all devices to save memory
   
   const shadowsEnabled = gl && (gl as any).shadowMap?.enabled !== false && !isMobile;
 
@@ -248,6 +250,14 @@ export function SingleEnvironmentMesh({ tier }: SingleEnvironmentMeshProps) {
             materials.forEach((mat: any) => {
               if (shadowsEnabled) {
                 mat.shadowSide = THREE.FrontSide;
+              }
+              
+              // Apply polygon offset to prevent z-fighting on coplanar surfaces
+              const meshNameLower = (mesh.name || '').toLowerCase();
+              if (meshNameLower.includes('road') || meshNameLower.includes('plaza') || 
+                  meshNameLower.includes('roof') || meshNameLower.includes('floor') ||
+                  meshNameLower.includes('ground') || meshNameLower.includes('deck')) {
+                applyPolygonOffset(mat);
               }
               
               if (isMobile) {

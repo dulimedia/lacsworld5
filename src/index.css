@@ -163,12 +163,44 @@ body {
   }
 }
 
-/* Desktop sidebar open - shift canvas right without resizing */
+
+/* CSS Variables for scene positioning */
+:root {
+  --scene-offset: 0px;
+  --scene-left: 48px;
+  --scene-right: 40px;
+  --scene-width: calc(100vw - 48px - 40px);
+}
+
+body.sidebar-open {
+  --scene-offset: 272px;
+  --scene-left: 320px;
+  --scene-width: calc(100vw - 320px - 40px);
+}
+
+body.sidebar-open.floorplan-expanded {
+  --scene-offset: 592px;
+  --scene-left: 640px;
+  --scene-width: calc(100vw - 640px - 40px);
+}
+
+/* Desktop - 3D scene positioning to match sidebar states */
 @media (min-width: 769px) {
-  body.sidebar-open .scene-shell {
-    left: 320px;
-    right: 0;
+  .scene-shell {
+    left: var(--scene-left);
+    right: var(--scene-right);
+    transform: none;
     transition: left 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    will-change: left;
+    contain: layout style paint;
+  }
+}
+
+/* Camera controls centered on scene (not screen) */
+@media (min-width: 769px) {
+  .camera-controls-desktop {
+    left: calc(var(--scene-left) + var(--scene-width) / 2);
+    transition: transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 }
 

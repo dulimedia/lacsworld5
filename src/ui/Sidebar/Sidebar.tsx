@@ -112,23 +112,42 @@ export default function Sidebar() {
   }
 
   return (
-    <aside
-      role="complementary"
-      aria-label="Suite Controls"
-      aria-expanded={open}
-      className={`fixed left-0 top-0 h-full z-30 
-        bg-white/90 backdrop-blur-md shadow-xl border-r border-black/5
-        transition-all duration-300 ease-[cubic-bezier(.2,.8,.2,1)]
-        ${open ? 'translate-x-0' : '-translate-x-[calc(100%-48px)]'}
-        ${floorPlanExpanded ? 'w-[640px]' : 'w-[320px]'}`}
-    >
+    <>
+      {/* Toggle button - positioned based on actual sidebar state */}
       <button
         aria-label={open ? 'Collapse sidebar' : 'Expand sidebar'}
         onClick={() => setOpen(!open)}
-        className="absolute -right-3 top-4 h-8 w-8 rounded-full bg-white shadow-md border border-black/10 grid place-items-center hover:bg-black/5 transition z-10"
+        className="fixed top-4 px-3 py-2 rounded-lg bg-white shadow-lg border border-black/10 flex items-center gap-2 hover:bg-gray-50 transition-all duration-300 z-50 text-sm font-medium"
+        style={{ 
+          left: open 
+            ? (floorPlanExpanded ? 'calc(640px + 28px)' : 'calc(320px + 28px)') 
+            : 'calc(48px + 28px)'
+        }}
       >
-        {open ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+        {open ? (
+          <>
+            <ChevronLeft size={16} />
+            <span>Collapse</span>
+          </>
+        ) : (
+          <>
+            <ChevronRight size={16} />
+            <span>Expand</span>
+          </>
+        )}
       </button>
+
+      <aside
+        role="complementary"
+        aria-label="Suite Controls"
+        aria-expanded={open}
+        className={`fixed left-0 top-0 h-full z-30 
+          bg-white/90 backdrop-blur-md shadow-xl border-r border-black/5
+          transition-all duration-300 ease-[cubic-bezier(.2,.8,.2,1)]
+          ${open ? 'translate-x-0' : '-translate-x-[calc(100%-48px)]'}
+          ${floorPlanExpanded ? 'w-[640px]' : 'w-[320px]'}`}
+        style={{ willChange: 'width, transform', contain: 'layout style paint' }}
+      >
 
       <div className="px-4 pt-4 pb-2 border-b border-black/5">
         {view === 'details' ? (
@@ -185,5 +204,6 @@ export default function Sidebar() {
         </div>
       </div>
     </aside>
+    </>
   );
 }

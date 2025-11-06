@@ -68,7 +68,7 @@ export const Presets = {
   tonemap(tier: Tier): ToneMapPreset {
     return {
       mode: 'ACES_FILMIC',
-      exposure: tier.startsWith('mobile') ? 2.625 : 3.15,
+      exposure: 1.0,
     };
   },
   composerScale(tier: Tier): number {

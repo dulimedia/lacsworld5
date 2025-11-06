@@ -34,3 +34,6 @@ coverage/
 .cache/
 .temp/
 tmp/
+
+# Agent knowledge base (large repos, don't commit)
+agent/.kb/

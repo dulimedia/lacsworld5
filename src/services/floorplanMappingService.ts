@@ -164,10 +164,10 @@ const SPECIAL_MAPPINGS: { [key: string]: string } = {
   'club 76': 'FGFloor_LACS_page_1.png',
   'club76': 'FGFloor_LACS_page_1.png',
   // Maryland Building Ground Floor units use the mg floorplan
-  'm20': 'mg floorplan.jpg',
-  'm40': 'mg floorplan.jpg', 
-  'm45': 'mg floorplan.jpg',
-  'm50': 'mg floorplan.jpg',
+  'm20': 'mg-floorplan.png',
+  'm40': 'mg-floorplan.png', 
+  'm45': 'mg-floorplan.png',
+  'm50': 'mg-floorplan.png',
   // First Street Building 1st floor units use F1_Floorplan.png fallback
   'f110': 'F1_Floorplan.png',
   'f110cr': 'F1_Floorplan.png',

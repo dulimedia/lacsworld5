@@ -165,7 +165,7 @@ export function SuiteDetailsTab() {
           <button
             onClick={() => {
               setFloorPlanExpanded(false);
-              setView('explore');
+              setView('details');
             }}
             className="flex items-center space-x-2 text-sm text-gray-700 hover:text-gray-900"
           >

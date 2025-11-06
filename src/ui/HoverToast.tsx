@@ -46,23 +46,38 @@ export const HoverToast: React.FC<HoverToastProps> = ({ className = '' }) => {
   return (
     <div 
       className={`
-        fixed bottom-6 left-1/2 transform -translate-x-1/2 
-        bg-white bg-opacity-90 backdrop-blur-sm 
-        rounded-lg shadow-lg border border-gray-200 
-        px-4 py-2 z-50 pointer-events-none
-        transition-all duration-200 ease-in-out
+        fixed bottom-6 z-50 pointer-events-none
+        bg-white bg-opacity-95 backdrop-blur-sm 
+        rounded-lg shadow-xl border border-gray-300 
+        px-4 py-3
+        transition-all duration-300 ease-in-out
         ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}
         ${className}
       `}
+      style={{
+        left: 'calc(var(--scene-left) + 12px)'
+      }}
     >
-      <div className="text-sm font-medium text-gray-900">
-        Building {hoveredUnit.building} · Floor {hoveredUnit.floor} · {hoveredUnit.unit_name}
+      <div className="text-sm font-semibold text-gray-900">
+        {hoveredUnit.unit_name}
       </div>
       {hoveredUnit.area_sqft && (
         <div className="text-xs text-gray-600 mt-1">
-          {hoveredUnit.area_sqft.toLocaleString()}sf · {hoveredUnit.status}
+          {hoveredUnit.area_sqft.toLocaleString()} sf
         </div>
       )}
+      {hoveredUnit.status && (
+        <div className={`text-xs font-medium mt-1 ${
+          hoveredUnit.status === 'Available' || hoveredUnit.status === true 
+            ? 'text-green-600' 
+            : 'text-red-600'
+        }`}>
+          {hoveredUnit.status === true ? 'Available' : hoveredUnit.status}
+        </div>
+      )}
+      <div className="text-xs text-gray-500 mt-1">
+        {hoveredUnit.building} · Floor {hoveredUnit.floor}
+      </div>
     </div>
   );
 };

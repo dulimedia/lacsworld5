@@ -41,16 +41,17 @@ export class SafariErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('Safari Error Boundary caught an error:', error, errorInfo);
-    
-    // Log Safari-specific error details
-    if (this.state.isSafari && this.state.isMobile) {
-      console.error('Safari Mobile Error Details:', {
-        userAgent: navigator.userAgent,
-        memory: (performance as any).memory,
-        error: error.message,
-        stack: error.stack
-      });
+    if (!this.state.hasError) {
+      console.error('Safari Error Boundary caught an error:', error, errorInfo);
+      
+      if (this.state.isSafari && this.state.isMobile) {
+        console.error('Safari Mobile Error Details:', {
+          userAgent: navigator.userAgent,
+          memory: (performance as any).memory,
+          error: error.message,
+          stack: error.stack
+        });
+      }
     }
   }
 

@@ -1,3 +1,5 @@
+import { pickTier, type QualityTier } from './QualityTier';
+
 export type Tier = "mobileLow" | "desktopHigh";
 
 export const PerfFlags = (() => {
@@ -11,27 +13,36 @@ export const PerfFlags = (() => {
   
   const isMobile = isMobileUA || (isTouchDevice && isNarrowViewport) || hasLowMemory || isSimulatorSize;
   const tier: Tier = isMobile ? "mobileLow" : "desktopHigh";
-
+  
+  const qualityTier: QualityTier = pickTier();
 
   return {
     tier,
+    qualityTier,
     isMobile,
     isMobileUA,
     isIOS,
     isTouch: isTouchDevice,
     
+    DPR_MAX: qualityTier === 'LOW' ? 1.2 : qualityTier === 'BALANCED' ? 1.3 : 2.0,
+    SHADOW_MAP_SIZE: qualityTier === 'LOW' ? 1024 : qualityTier === 'BALANCED' ? 1024 : 2048,
+    SHADOWS_ENABLED: qualityTier !== 'LOW',
+    MAX_TEXTURE_DIM: qualityTier === 'LOW' ? 1024 : qualityTier === 'BALANCED' ? 2048 : 4096,
+    
     dynamicShadows: false,
     ssr: false,
     ssgi: false,
-    ao: false,
-    bloom: false,
+    ao: qualityTier === 'HIGH',
+    bloom: qualityTier !== 'LOW',
     antialiasing: false,
-    anisotropy: 2,
-    maxTextureSize: 1024,
-    pixelRatio: 1.0,
-    powerPreference: 'low-power' as const,
+    anisotropy: qualityTier === 'LOW' ? 1 : 2,
+    maxTextureSize: qualityTier === 'LOW' ? 1024 : qualityTier === 'BALANCED' ? 2048 : 4096,
+    pixelRatio: qualityTier === 'LOW' ? 1.2 : qualityTier === 'BALANCED' ? 1.3 : 2.0,
+    powerPreference: 'high-performance' as const,
     
     useLogDepth: false,
     originRebase: false,
+    
+    useDracoCompressed: false,
   };
 })();

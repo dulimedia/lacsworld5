@@ -1,0 +1,43 @@
+{
+  "ci": {
+    "collect": {
+      "url": ["http://localhost:3000"],
+      "numberOfRuns": 2,
+      "settings": {
+        "preset": "mobile",
+        "throttlingMethod": "devtools",
+        "formFactor": "mobile",
+        "screenEmulation": {
+          "mobile": true,
+          "width": 390,
+          "height": 844,
+          "deviceScaleFactor": 3,
+          "disabled": false
+        },
+        "throttling": {
+          "rttMs": 40,
+          "throughputKbps": 10240,
+          "cpuSlowdownMultiplier": 2,
+          "requestLatencyMs": 0,
+          "downloadThroughputKbps": 10240,
+          "uploadThroughputKbps": 10240
+        },
+        "onlyCategories": ["performance"]
+      }
+    },
+    "assert": {
+      "assertions": {
+        "categories:performance": ["warn", {"minScore": 0.7}],
+        "first-contentful-paint": ["warn", {"maxNumericValue": 4000}],
+        "interactive": ["error", {"maxNumericValue": 6000}],
+        "speed-index": ["warn", {"maxNumericValue": 5000}],
+        "total-byte-weight": ["warn", {"maxNumericValue": 3500000}],
+        "bootup-time": ["warn", {"maxNumericValue": 3000}],
+        "mainthread-work-breakdown": ["warn", {"maxNumericValue": 4000}]
+      }
+    },
+    "upload": {
+      "target": "temporary-public-storage"
+    }
+  }
+}

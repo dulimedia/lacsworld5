@@ -1,0 +1,32 @@
+repos:
+  - https://github.com/mrdoob/three.js.git
+  - https://github.com/Itee/three-full.git
+  - https://github.com/sjfricke/awesome-webgl.git
+  - https://github.com/trusktr/WebGL-WebGPU-frameworks-libraries.git
+  - https://github.com/oframe/ogl.git
+  - https://github.com/GlobeletJS/yawgl.git
+  - https://github.com/andykswong/mugl.git
+  - https://github.com/Tencent-Hunyuan/HunyuanWorld-Mirror.git
+  - https://github.com/shuding/cobe.git
+  - https://github.com/sno/unity-webgl-responsive.git
+  - https://github.com/Domenicobrz/C2-Renderer.git
+  - https://github.com/agargaro/instanced-mesh.git
+  - https://github.com/bizarro/bizar.ro.git
+  - https://github.com/ektogamat/r3f-webgpu-starter.git
+urls:
+  - https://github.com/mrdoob/three.js/releases
+  - https://github.com/topics/webgl-library
+  - https://gist.github.com/zjhiphop/6927ef0d3a8ddd6025151d7f0aee3df7
+  - https://paveldogreat.github.io/WebGL-Fluid-Simulation/
+  - https://github.com/topics/webgl
+  - https://github.com/collections/javascript-game-engines
+keywords:
+  - mobile performance
+  - shadows pcf pcss contact hardening
+  - ssgi ssao gtao ssr
+  - logarithmicDepthBuffer polygonOffset z-fighting
+  - ktx2 basis texture compression
+  - meshopt draco gltf pipeline
+  - webgpu threejs r3f postprocessing
+  - tone mapping aces filmic
+  - iOS Safari WebGL limits

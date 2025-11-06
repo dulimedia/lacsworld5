@@ -23,6 +23,8 @@ export const SelectedUnitOverlay: React.FC = () => {
   const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
   const lastCameraPositionRef = useRef<THREE.Vector3>(new THREE.Vector3());
   const needsOcclusionUpdateRef = useRef<boolean>(false);
+  const targetOpacityRef = useRef<number>(0);
+  const currentOpacityRef = useRef<number>(0);
   
   // Function to detect occlusion between camera and unit
   const detectOcclusion = (unitObject: THREE.Group): number => {
@@ -180,8 +182,8 @@ export const SelectedUnitOverlay: React.FC = () => {
     });
   };
 
-  // Detect camera movement and trigger occlusion updates
-  useFrame(() => {
+  // Detect camera movement and trigger occlusion updates + smooth fade
+  useFrame((state, delta) => {
     if (!camera) return;
     
     const currentPosition = camera.position.clone();
@@ -196,6 +198,25 @@ export const SelectedUnitOverlay: React.FC = () => {
     if (needsOcclusionUpdateRef.current && overlayMeshesRef.current.length > 0) {
       updateOcclusionForExistingOverlays();
       needsOcclusionUpdateRef.current = false;
+    }
+    
+    // Smooth fade in/out for highlight
+    const fadeSpeed = 3.0; // Higher = faster fade
+    const hasOverlays = overlayMeshesRef.current.length > 0;
+    targetOpacityRef.current = hasOverlays ? 1.0 : 0.0;
+    
+    // Lerp current opacity towards target
+    const opacityDiff = targetOpacityRef.current - currentOpacityRef.current;
+    if (Math.abs(opacityDiff) > 0.001) {
+      currentOpacityRef.current += opacityDiff * Math.min(delta * fadeSpeed, 1.0);
+      
+      // Apply to all overlay meshes
+      overlayMeshesRef.current.forEach(mesh => {
+        if (mesh.material && 'uniforms' in mesh.material && mesh.material.uniforms.uOpacity) {
+          const baseOpacity = GHOST_MATERIAL_CONFIG.opacity * (mesh.userData.occlusionFactor || 1.0);
+          mesh.material.uniforms.uOpacity.value = baseOpacity * currentOpacityRef.current;
+        }
+      });
     }
   });
 
@@ -212,42 +233,58 @@ export const SelectedUnitOverlay: React.FC = () => {
 
     // Small delay to ensure the original mesh is hidden first
     const timeoutId = setTimeout(() => {
-      let unitsToHighlight = [];
+      const unitsToHighlight = [];
+      const highlightedKeys = new Set<string>();
 
-      // Determine which units to highlight based on hover state (priority) or selection level
+      // SIMULTANEOUS HIGHLIGHTING: Show both hover AND selection at the same time
       
+      // 1. Add hovered floor (highest priority for hover)
       if (hoveredFloor) {
-        // Floor hover takes highest priority - show all units in the hovered floor
         const floorUnits = getGLBsByFloor(hoveredFloor.building, hoveredFloor.floor);
-        unitsToHighlight = floorUnits.filter(unit => unit.object && unit.isLoaded);
-      } else if (hoveredUnit) {
-        // Single unit hover - show only the hovered unit
+        floorUnits.forEach(unit => {
+          if (unit.object && unit.isLoaded && !highlightedKeys.has(unit.key)) {
+            unitsToHighlight.push(unit);
+            highlightedKeys.add(unit.key);
+          }
+        });
+      }
+      
+      // 2. Add hovered unit
+      if (hoveredUnit) {
         const hoveredUnitGLB = glbNodes.get(hoveredUnit);
-        
-        if (hoveredUnitGLB?.object && hoveredUnitGLB.isLoaded) {
+        if (hoveredUnitGLB?.object && hoveredUnitGLB.isLoaded && !highlightedKeys.has(hoveredUnit)) {
           hoveredUnitGLB.object.visible = false;
           unitsToHighlight.push(hoveredUnitGLB);
+          highlightedKeys.add(hoveredUnit);
         }
-      } else if (selectedUnit && selectedBuilding && selectedFloor !== null && selectedFloor !== undefined) {
-        // Single unit selection (note: selectedFloor can be empty string "" for some buildings)
+      }
+      
+      // 3. Add selected unit (if different from hovered)
+      if (selectedUnit && selectedBuilding && selectedFloor !== null && selectedFloor !== undefined) {
         const unitGLB = getGLBByUnit(selectedBuilding, selectedFloor, selectedUnit);
-        
-        if (unitGLB?.object && unitGLB.isLoaded) {
-          // Double-check that the original is hidden before creating overlay
-          if (unitGLB.object) {
-            unitGLB.object.visible = false;
-          }
+        if (unitGLB?.object && unitGLB.isLoaded && !highlightedKeys.has(unitGLB.key)) {
+          unitGLB.object.visible = false;
           unitsToHighlight.push(unitGLB);
-        } else {
+          highlightedKeys.add(unitGLB.key);
         }
       } else if (selectedFloor !== null && selectedFloor !== undefined && selectedBuilding) {
-        // Floor selection - highlight all units on that floor
+        // 4. Add selected floor units (if no specific unit selected)
         const floorUnits = getGLBsByFloor(selectedBuilding, selectedFloor);
-        unitsToHighlight = floorUnits.filter(unit => unit.object && unit.isLoaded);
+        floorUnits.forEach(unit => {
+          if (unit.object && unit.isLoaded && !highlightedKeys.has(unit.key)) {
+            unitsToHighlight.push(unit);
+            highlightedKeys.add(unit.key);
+          }
+        });
       } else if (selectedBuilding) {
-        // Building selection - highlight all units in the building
+        // 5. Add selected building units (if no floor/unit selected)
         const buildingUnits = getGLBsByBuilding(selectedBuilding);
-        unitsToHighlight = buildingUnits.filter(unit => unit.object && unit.isLoaded);
+        buildingUnits.forEach(unit => {
+          if (unit.object && unit.isLoaded && !highlightedKeys.has(unit.key)) {
+            unitsToHighlight.push(unit);
+            highlightedKeys.add(unit.key);
+          }
+        });
       }
 
       // Create overlays for all selected units
@@ -280,10 +317,10 @@ export const SelectedUnitOverlay: React.FC = () => {
           const occlusionFactors = overlayMeshesRef.current.map(mesh => mesh.userData.occlusionFactor).filter(f => f !== undefined);
           const avgOcclusion = occlusionFactors.length > 0 ? occlusionFactors.reduce((a, b) => a + b, 0) / occlusionFactors.length : 1.0;
           
-      } catch (error) {
-        console.error('Error creating overlay:', error);
+        } catch (error) {
+          console.error('Error creating overlay:', error);
+        }
       }
-    }
     }, 50); // 50ms delay to ensure original mesh is hidden
     
     return () => clearTimeout(timeoutId);

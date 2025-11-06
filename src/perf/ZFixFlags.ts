@@ -1,0 +1,7 @@
+export const ZFixFlags = {
+  ENABLE_POLYGON_OFFSET: true,
+  DISABLE_LOG_DEPTH_ON_MOBILE: true,
+  CAMERA_NEAR: 0.5,
+  CAMERA_FAR: 2000,
+  DECAL_EPSILON: 0.002,
+};

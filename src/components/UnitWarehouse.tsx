@@ -3,7 +3,7 @@ import { useGLTF, useFBX } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Mesh, Object3D, MeshStandardMaterial, MeshPhysicalMaterial, Material, Color } from 'three';
-import { FALLBACK_UNIT_DATA } from '../App';
+import { UNIT_BOX_GLB_FILES } from '../data/unitBoxGlbFiles';
 import { UnitData, LoadedModel } from '../types';
 import { useFilterStore } from '../stores/useFilterStore';
 import FresnelMaterial from '../materials/FresnelMaterial';
@@ -509,51 +509,55 @@ const UnitWarehouseComponent: React.FC<UnitWarehouseProps> = ({
 
   const allModels = useMemo(() => {
     const isMobile = typeof window !== 'undefined' && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-    
-    if (isMobile) {
-      console.log('📱 Mobile: Loading essential models only (3/11)');
-      return [
-        'environment/frame-raw-14.glb',
-        'environment/roof and walls.glb',
-        'environment/road.glb'
-      ];
-    }
+    const useDraco = PerfFlags.useDracoCompressed;
+    const folder = useDraco ? 'environment/compressed' : 'environment';
     
     return [
-      'environment/accessory concrete.glb',
-      'environment/hq sidewalk 2.glb',
-      'environment/road.glb',
-      'environment/stages.glb',
-      'environment/transparent buildings.glb',
-      'environment/transparents sidewalk.glb',
-      'environment/white wall.glb',
-      'environment/frame-raw-14.glb',
-      'environment/roof and walls.glb',
-      'environment/maryland street .glb',
-      'environment/beaudry ave.glb'
+      `${folder}/frame${useDraco ? '' : '-raw-14'}.glb`,
+      `${folder}/others2.glb`,
+      `${folder}/roof and walls.glb`,
+      `${folder}/stages.glb`
     ];
   }, []);
 
   const boxFiles = useMemo(() => {
-    const boxFiles = [];
+    const files: string[] = [];
     const isMobile = typeof window !== 'undefined' && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-    
+
     // MOBILE OPTIMIZATION: Skip loading box files on mobile to prevent Safari crashes
     if (isMobile) {
       logger.log('GLB', '📱', 'Mobile detected - skipping unit boxes to prevent memory crash');
       return [];
     }
-    
-    for (const key in FALLBACK_UNIT_DATA) {
-      const unit = FALLBACK_UNIT_DATA[key];
-      if (unit.glb && unit.glb.length > 0) {
-        boxFiles.push(unit.glb);
+
+    for (const path of UNIT_BOX_GLB_FILES) {
+      if (path && path.length > 0) {
+        files.push(path);
       }
     }
-    return boxFiles;
+    return files;
   }, []);
 
   const loadedModels = useMemo(() => loadedModelsRef.current, [loadedModelsRef]);
+
+  // Preload all models to start downloads immediately
+  useEffect(() => {
+    const preloadModels = async () => {
+      // Preload environment models
+      allModels.forEach(path => {
+        useGLTF.preload(assetUrl(`models/${path}`), true);
+      });
+      
+      // Preload box models (only on desktop)
+      if (!PerfFlags.isMobile) {
+        boxFiles.forEach(path => {
+          useGLTF.preload(assetUrl(`models/${path}`), true);
+        });
+      }
+    };
+    
+    preloadModels();
+  }, [allModels, boxFiles]);
 
   const handleModelLoad = useCallback((model: LoadedModel) => {
     loadedModelsRef.current.push(model);
@@ -879,8 +883,8 @@ const UnitWarehouseComponent: React.FC<UnitWarehouseProps> = ({
         <primitive key={model.name} object={model.object} />
       ))}
       
-      {/* Palm Trees */}
-      <PalmTreeInstancerSimple visible={true} />
+      {/* Palm Trees - Disabled on mobile due to shader complexity */}
+      {!PerfFlags.isMobile && <PalmTreeInstancerSimple visible={true} />}
     </group>
   );
 };

@@ -161,78 +161,105 @@ ${formData.message}
                 
                 {isExpanded && (
                   <div className="px-2 pb-2 space-y-2">
-                    {Object.entries(floors).map(([floorName, unitKeys]) => {
-                      const floorKey = `${building}/${floorName}`;
-                      const isFloorExpanded = expandedFloors.has(floorKey);
-                      const uniqueUnits = Array.from(new Set(unitKeys));
-                      const allFloorSelected = uniqueUnits.length > 0 && uniqueUnits.every(key => selectedSuites.has(key));
-                      
-                      return (
-                        <div key={floorKey} className="border border-black/5 rounded">
-                          <div className="flex items-center space-x-2 px-2 py-1 bg-black/[0.02]">
-                            <button
-                              type="button"
-                              onClick={() => toggleFloor(floorKey)}
-                              className="flex items-center space-x-1"
-                            >
-                              {isFloorExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                            </button>
-                            <div className="flex items-center space-x-2 flex-1">
-                              <label className="flex items-center cursor-pointer" onClick={(e) => e.stopPropagation()}>
-                                <input
-                                  type="checkbox"
-                                  key={`${floorKey}-${selectedSuites.size}-${allFloorSelected}`}
-                                  checked={allFloorSelected}
-                                  onChange={(e) => {
-                                    e.stopPropagation();
-                                    toggleAllInFloor(building, floorName, unitKeys);
-                                  }}
-                                  className="rounded border-black/20 w-4 h-4"
-                                />
-                              </label>
-                              <span 
-                                className="text-xs font-medium cursor-pointer"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleFloor(floorKey);
-                                }}
-                              >
-                                {floorName}
-                              </span>
-                              <span className="text-xs text-black/40">({uniqueUnits.length})</span>
-                            </div>
-                          </div>
+                    {building === 'Tower Building' ? (
+                      // Tower Building: render units directly without floor grouping
+                      <div className="px-2 py-1 space-y-1">
+                        {Array.from(new Set(Object.values(floors).flat())).sort((a, b) => {
+                          const getNumber = (key: string) => {
+                            const unit = unitsData.get(key);
+                            if (!unit) return 0;
+                            const match = unit.unit_name.match(/T-?(\d+)/i);
+                            return match ? parseInt(match[1], 10) : 0;
+                          };
+                          return getNumber(a) - getNumber(b);
+                        }).map(unitKey => {
+                          const unit = unitsData.get(unitKey);
+                          if (!unit) return null;
                           
-                          {isFloorExpanded && (
-                            <div className="px-4 py-1 space-y-1">
-                              {uniqueUnits.map(unitKey => {
-                                const unit = unitsData.get(unitKey);
-                                if (!unit) return null;
-                                
-                                return (
-                                  <label
-                                    key={unitKey}
-                                    className="flex items-center space-x-2 px-2 py-1 hover:bg-black/5 rounded cursor-pointer"
-                                    onClick={(e) => e.preventDefault()}
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={selectedSuites.has(unitKey)}
-                                      onChange={(e) => {
-                                        e.stopPropagation();
-                                        toggleSuite(unitKey);
-                                      }}
-                                      className="rounded border-black/20"
-                                    />
-                                    <span className="text-xs">{unit.unit_name}</span>
-                                  </label>
-                                );
-                              })}
+                          return (
+                            <label
+                              key={unitKey}
+                              className="flex items-center space-x-2 px-2 py-1 hover:bg-black/5 rounded cursor-pointer"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedSuites.has(unitKey)}
+                                onChange={() => toggleSuite(unitKey)}
+                                className="rounded border-gray-400 w-4 h-4 text-blue-600 focus:ring-blue-500 focus:ring-2 cursor-pointer"
+                              />
+                              <span className="text-xs">{unit.unit_name}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      // Other buildings: show floor grouping
+                      Object.entries(floors).map(([floorName, unitKeys]) => {
+                        const floorKey = `${building}/${floorName}`;
+                        const isFloorExpanded = expandedFloors.has(floorKey);
+                        const uniqueUnits = Array.from(new Set(unitKeys));
+                        const allFloorSelected = uniqueUnits.length > 0 && uniqueUnits.every(key => selectedSuites.has(key));
+                        
+                        return (
+                          <div key={floorKey} className="border border-black/5 rounded">
+                            <div className="flex items-center space-x-2 px-2 py-1 bg-black/[0.02]">
+                              <button
+                                type="button"
+                                onClick={() => toggleFloor(floorKey)}
+                                className="flex items-center space-x-1"
+                              >
+                                {isFloorExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                              </button>
+                              <div className="flex items-center space-x-2 flex-1">
+                                <label className="flex items-center cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    key={`${floorKey}-${selectedSuites.size}-${allFloorSelected}`}
+                                    checked={allFloorSelected}
+                                    onChange={() => toggleAllInFloor(building, floorName, unitKeys)}
+                                    className="rounded border-gray-400 w-4 h-4 text-blue-600 focus:ring-blue-500 focus:ring-2 cursor-pointer"
+                                  />
+                                </label>
+                                <span 
+                                  className="text-xs font-medium cursor-pointer"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleFloor(floorKey);
+                                  }}
+                                >
+                                  {floorName}
+                                </span>
+                                <span className="text-xs text-black/40">({uniqueUnits.length})</span>
+                              </div>
                             </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                            
+                            {isFloorExpanded && (
+                              <div className="px-4 py-1 space-y-1">
+                                {uniqueUnits.map(unitKey => {
+                                  const unit = unitsData.get(unitKey);
+                                  if (!unit) return null;
+                                  
+                                  return (
+                                    <label
+                                      key={unitKey}
+                                      className="flex items-center space-x-2 px-2 py-1 hover:bg-black/5 rounded cursor-pointer"
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={selectedSuites.has(unitKey)}
+                                        onChange={() => toggleSuite(unitKey)}
+                                        className="rounded border-gray-400 w-4 h-4 text-blue-600 focus:ring-blue-500 focus:ring-2 cursor-pointer"
+                                      />
+                                      <span className="text-xs">{unit.unit_name}</span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
                 )}
               </div>

@@ -1,0 +1,42 @@
+name: size-guard
+on:
+  pull_request:
+    branches: [ main, master ]
+  push:
+    branches: [ main, master ]
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Report sizes
+        run: |
+          echo "== Directory sizes =="
+          du -sh .git || true
+          du -sh public src || true
+          du -sh .next dist build .vite .vercel .turbo || true
+
+      - name: Enforce thresholds
+        env:
+          MAX_GIT_DIR_MB: "300"   # adjust to taste
+          MAX_DIST_MB: "30"       # adjust to taste
+        run: |
+          fail=0
+          git_mb=$(du -sm .git | awk '{print $1}')
+          echo "Git dir: ${git_mb} MB (limit ${MAX_GIT_DIR_MB} MB)"
+          if [ "$git_mb" -gt "$MAX_GIT_DIR_MB" ]; then
+            echo "::error ::Git dir exceeds limit"; fail=1; fi
+
+          for d in dist .next build; do
+            if [ -d "$d" ]; then
+              mb=$(du -sm "$d" | awk '{print $1}')
+              echo "$d: ${mb} MB (limit ${MAX_DIST_MB} MB)"
+              if [ "$mb" -gt "$MAX_DIST_MB" ]; then
+                echo "::error ::$d exceeds limit"; fail=1; fi
+            fi
+          done
+          exit $fail

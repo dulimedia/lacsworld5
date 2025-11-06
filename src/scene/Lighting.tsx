@@ -36,7 +36,7 @@ export function Lighting({
       old.forEach(o => scene.remove(o));
 
       // Create directional light
-      const sun = new DirectionalLight(0xffffff, isMobile ? 4.0 : 7.2);
+      const sun = new DirectionalLight(0xffffff, isMobile ? 3.2 : 7.2);
       sun.position.set(-40, 30, 20);
       
       // Mobile-low: No shadows
@@ -96,15 +96,15 @@ export function Lighting({
       
       // Add ambient light based on tier
       if (isMobileLow) {
-        const ambient = new AmbientLight(0xffffff, 2.2);
+        const ambient = new AmbientLight(0x404040, 0.6);
         ambient.userData.__ambientLight = true;
         scene.add(ambient);
-        logger.log('LOADING', '💡', 'Mobile-low: Strong ambient light (no shadows)');
+        logger.log('LOADING', '💡', 'Mobile-low: Reduced ambient light (no shadows)');
       } else if (isMobileHigh) {
-        const ambient = new AmbientLight(0xffffff, 1.0);
+        const ambient = new AmbientLight(0x303030, 0.4);
         ambient.userData.__ambientLight = true;
         scene.add(ambient);
-        logger.log('LOADING', '💡', 'Mobile-high: Moderate ambient light with shadows');
+        logger.log('LOADING', '💡', 'Mobile-high: Reduced ambient light with shadows');
       } else {
         const ambient = new AmbientLight(0x404040, 0.3);
         ambient.userData.__ambientLight = true;

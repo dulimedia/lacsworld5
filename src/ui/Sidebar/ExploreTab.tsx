@@ -71,6 +71,7 @@ export function ExploreTab() {
       const isTowerBuilding = building === 'Tower Building';
       
       if (isTowerBuilding) {
+        // Tower Building: display units directly without floor grouping
         const allTowerUnits: Array<{unitKey: string, unit: any}> = [];
         
         Object.values(floors).forEach(unitKeys => {
@@ -112,6 +113,7 @@ export function ExploreTab() {
           });
         });
         
+        // Sort Tower units numerically (T-100, T-110, T-200, etc.)
         allTowerUnits.sort((a, b) => {
           const getNumber = (unitName: string) => {
             const match = unitName.match(/T-?(\d+)/i);
@@ -120,8 +122,9 @@ export function ExploreTab() {
           return getNumber(a.unit.unit_name) - getNumber(b.unit.unit_name);
         });
         
+        // Add units directly without a floor subfolder
         if (allTowerUnits.length > 0) {
-          floorGroups.push({ floorName: 'All Suites', units: allTowerUnits });
+          floorGroups.push({ floorName: '', units: allTowerUnits });
         }
       } else {
         const floorOrder = ['Ground Floor', 'First Floor', 'Second Floor', 'Third Floor'];
@@ -318,7 +321,43 @@ export function ExploreTab() {
                 {b.floorGroups.map(floor => {
                   const floorKey = `${b.name}/${floor.floorName}`;
                   const isFloorExpanded = expandedFloors.has(floorKey);
+                  const isTowerBuilding = b.name === 'Tower Building';
                   
+                  // For Tower Building, render units directly without floor grouping
+                  if (isTowerBuilding) {
+                    return (
+                      <div key={floor.floorName} className={isMobile ? "px-1 pb-0.5 grid grid-cols-2 gap-0.5" : "px-2 pb-1 space-y-1"}>
+                        {floor.units.map(({unitKey, unit}) => (
+                          <button
+                            key={unitKey}
+                            className={isMobile 
+                              ? "text-left px-1 py-0.5 rounded hover:bg-black/5 transition text-[10px] flex flex-col"
+                              : "w-full text-left px-2 py-1.5 rounded hover:bg-black/5 transition text-sm flex items-center justify-between"}
+                            onClick={() => {
+                              setSelected(unitKey);
+                              setView('details');
+                              
+                              const unitData = unitsData.get(unitKey);
+                              if (unitData) {
+                                selectUnit(unitData.building, unitData.floor, unitData.unit_name);
+                              }
+                            }}
+                            onMouseEnter={() => setHovered(unitKey)}
+                            onMouseLeave={() => setHovered(null)}
+                          >
+                            <span className={isMobile ? "font-medium truncate" : ""}>{unit.unit_name}</span>
+                            {!isMobile && (
+                              <span className={`text-xs px-2 py-0.5 rounded ${unit.status ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                {unit.status ? 'Available' : 'Occupied'}
+                              </span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  }
+                  
+                  // For other buildings, show floor grouping
                   return (
                     <div key={floor.floorName} className="border border-black/5 rounded bg-white">
                       <button
