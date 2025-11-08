@@ -1122,21 +1122,8 @@ function App() {
 
 
         
-        {/* Mobile placeholder - no 3D canvas */}
-        {PerfFlags.isMobile && (
-          <div className="absolute inset-0 bg-gradient-to-b from-sky-200 to-sky-100 flex items-center justify-center p-8">
-            <div className="text-center max-w-md">
-              <h2 className="text-2xl font-bold text-gray-800 mb-4">Desktop Experience Recommended</h2>
-              <p className="text-gray-600 mb-6">
-                The full 3D warehouse visualization is available on desktop devices. 
-                Use the sidebar to explore available suites and submit requests.
-              </p>
-            </div>
-          </div>
-        )}
-        
-        {/* CRITICAL FIX: Disable WebGL canvas entirely on iOS/mobile to prevent crash */}
-        {canvasReady && !PerfFlags.isMobile && (
+        {/* Canvas loads on all devices - same UI responsive */}
+        {canvasReady && (
         <RootCanvas
           shadows={!PerfFlags.isIOS}
           dpr={PerfFlags.isIOS ? 1 : [1, 2]}
