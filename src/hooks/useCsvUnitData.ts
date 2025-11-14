@@ -107,7 +107,15 @@ class CsvDataCache {
                   unit_type: row.Type || row.Unit_Type || 'Commercial',
                   kitchen_size: row.Kitchen || row.Kitchen_Size || 'None',
                   height: row.Height || '',
-                  amenities: row.Amenities || 'Central Air'
+                  amenities: row.Amenities || 'Central Air',
+                  private_offices: (() => {
+                    const officeCount = row['Private Offices'] ?? row['Private Office'] ?? row['Office Count'];
+                    if (officeCount === undefined || officeCount === null || officeCount === '') {
+                      return undefined;
+                    }
+                    const parsed = parseInt(String(officeCount).replace(/[^\d-]/g, ''), 10);
+                    return !isNaN(parsed) && parsed >= 0 ? parsed : undefined;
+                  })()
                 };
                 
                 // Store with multiple key formats for flexible matching

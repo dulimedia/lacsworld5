@@ -279,15 +279,22 @@ export function SuiteDetailsTab() {
             </div>
           )}
 
-          {displayUnit.floor && (
+          <div className="flex items-start justify-between space-x-2">
             <div className="flex items-start space-x-2">
               <MapPin size={16} className="text-gray-400 mt-0.5" />
               <div>
                 <div className="text-xs text-gray-500">Floor</div>
-                <div className="text-sm font-medium">{displayUnit.floor}</div>
+                <div className="text-sm font-medium">{displayUnit.floor || 'N/A'}</div>
               </div>
             </div>
-          )}
+            <div className="flex items-center text-[11px] font-semibold text-gray-600 bg-gray-100 px-2 py-1 rounded-full whitespace-nowrap">
+              {displayUnit.private_offices === undefined || displayUnit.private_offices === null
+                ? 'Private Offices: N/A'
+                : displayUnit.private_offices === 0
+                  ? 'Open Floor Plan'
+                  : `${displayUnit.private_offices} ${displayUnit.private_offices === 1 ? 'Office' : 'Offices'}`}
+            </div>
+          </div>
         </div>
 
         {displayUnit.kitchen_size && displayUnit.kitchen_size.toLowerCase() !== 'none' && (

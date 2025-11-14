@@ -1,5 +1,5 @@
 import { useGLTF } from '@react-three/drei';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { makeFacesBehave } from '../utils/makeFacesBehave';
 import { fixInvertedFacesSelective } from '../utils/fixInvertedFacesSelective';
@@ -9,514 +9,751 @@ import { simplifyGeometryForMobile, shouldSimplifyMesh, optimizeMeshForMobile } 
 import { PerfFlags } from '../perf/PerfFlags';
 import { log } from '../utils/debugFlags';
 import { applyPolygonOffset } from '../materials/applyPolygonOffset';
-import type { GLTF } from 'three-stdlib';
 
 interface SingleEnvironmentMeshProps {
   tier: string;
 }
 
-type LoadingState = 'pending' | 'loading' | 'complete' | 'error';
+const DRACO_DECODER_CDN = 'https://www.gstatic.com/draco/versioned/decoders/1.5.6/';
+const OTHER_ENVIRONMENT_COUNT = 7;
+const MOBILE_PHASE_COUNT = 4;
 
-interface ModelState {
-  gltf: GLTF | null;
-  loadingState: LoadingState;
-  error?: string;
+function useDracoGLTF(path: string) {
+  return useGLTF(path, DRACO_DECODER_CDN);
 }
 
 export function SingleEnvironmentMesh({ tier }: SingleEnvironmentMeshProps) {
   const { gl } = useThree();
   
-  const isSmallViewport = window.innerWidth < 600 || window.innerHeight < 600;
   const isMobile = (tier === 'mobile-low');
   
-  // Sequential loading state for mobile
-  const [models, setModels] = useState<{
-    others: ModelState;
-    frame: ModelState;
-    roof: ModelState;
-    stages: ModelState;
-  }>(() => ({
-    others: { gltf: null, loadingState: 'pending' },
-    frame: { gltf: null, loadingState: 'pending' },
-    roof: { gltf: null, loadingState: 'pending' },
-    stages: { gltf: null, loadingState: 'pending' }
-  }));
-  
-  // CRITICAL FIX: Mobile loads ZERO environment models to prevent crash
-  // Desktop loads all models normally
-  // Mobile shows only unit boxes (97 tiny GLBs ~86KB total) + sky gradient
-  const others = !isMobile ? useGLTF('/models/environment/others2.glb') : { scene: null };
-  const frame = !isMobile ? useGLTF('/models/environment/frame-raw-14.glb') : { scene: null };
-  const roof = !isMobile ? useGLTF('/models/environment/roof and walls.glb') : { scene: null };
-  const stages = !isMobile ? useGLTF('/models/environment/stages.glb') : { scene: null };
-  
-  console.log('📱 SingleEnvironmentMesh:', { 
-    isMobile, 
-    tier, 
-    loadingModels: !isMobile ? 'all (desktop)' : 'ZERO (mobile - crash prevention)',
-    reason: isMobile ? 'Environment models (32MB) exceed mobile memory budget (15MB max)' : 'Desktop has sufficient memory'
+  const accessory = useDracoGLTF('/models/environment/accessory concrete.glb');
+  const hqSidewalk = useDracoGLTF('/models/environment/hq sidewalk 2.glb');
+  const road = useDracoGLTF('/models/environment/road.glb');
+  const transparentBuildings = useDracoGLTF('/models/environment/transparent buildings.glb');
+  const transparentSidewalk = useDracoGLTF('/models/environment/transparents sidewalk.glb');
+  const whiteWall = useDracoGLTF('/models/environment/white wall.glb');
+  const palms = useDracoGLTF('/models/environment/palms.glb');
+  const frame = useDracoGLTF('/models/environment/frame-raw-14.glb');
+  const roof = useDracoGLTF('/models/environment/roof and walls.glb');
+  const stages = useDracoGLTF('/models/environment/stages.glb');
+
+
+
+  const otherScenes = useMemo(
+
+    () =>
+
+      [
+
+        accessory.scene,
+
+        hqSidewalk.scene,
+
+        road.scene,
+
+        transparentBuildings.scene,
+
+        transparentSidewalk.scene,
+
+        whiteWall.scene,
+
+        palms.scene
+
+      ].filter((scene): scene is THREE.Object3D => Boolean(scene)),
+
+    [
+
+      accessory.scene,
+
+      hqSidewalk.scene,
+
+      road.scene,
+
+      transparentBuildings.scene,
+
+      transparentSidewalk.scene,
+
+      whiteWall.scene,
+
+      palms.scene
+
+    ]
+
+  );
+
+
+
+  const othersReady = otherScenes.length === OTHER_ENVIRONMENT_COUNT;
+
+  const frameReady = Boolean(frame.scene);
+
+  const roofReady = Boolean(roof.scene);
+
+  const stagesReady = Boolean(stages.scene);
+
+
+
+  const mobilePhaseDispatch = useRef({
+
+    started: false,
+
+    others: false,
+
+    frame: false,
+
+    roof: false,
+
+    stages: false,
+
+    completed: false
+
   });
+
+
+
+  const sendMobileUpdate = (phase: 'others' | 'frame' | 'roof' | 'stages', step: number, message: string) => {
+
+    if (!window.dispatchEvent) return;
+
+    window.dispatchEvent(new CustomEvent('mobile-loading-update', {
+
+      detail: {
+
+        phase: `${phase}-complete`,
+
+        progress: Math.round((step / MOBILE_PHASE_COUNT) * 100),
+
+        message
+
+      }
+
+    }));
+
+  };
+
   
+
+  console.log('dY"? SingleEnvironmentMesh:', { 
+
+    isMobile, 
+
+    tier, 
+
+    loadingModels: 'Draco environment set (10 GLBs)',
+
+    reason: isMobile ? 'Environment enabled using compressed assets' : 'Desktop has sufficient memory'
+
+  });
+
+  
+
   const shadowsEnabled = gl && (gl as any).shadowMap?.enabled !== false && !isMobile;
 
-  // Sequential model loading for mobile - DISABLED to prevent crash
-  // Mobile gets minimal scene: unit boxes only + sky gradient
+
+
   useEffect(() => {
-    if (!isMobile) return; // Desktop uses normal useGLTF loading
-    
-    console.log('📱 Mobile detected: SKIPPING environment model loading');
-    console.log('📱 Reason: Total environment assets (32MB) exceed iOS Safari WebGL memory limit');
-    console.log('📱 Mobile will show: Unit boxes only (~86KB total) + sky gradient background');
-    return; // Exit early - mobile loads ZERO environment models
-    
-    const loadModel = async (url: string, name: string, overallProgress: {current: number, total: number}): Promise<GLTF> => {
-      console.log(`🔄 Loading ${name}... (${overallProgress.current + 1}/${overallProgress.total})`);
-      
-      // Dispatch loading status to mobile UI
-      if (window.dispatchEvent) {
-        window.dispatchEvent(new CustomEvent('mobile-loading-update', {
-          detail: {
-            phase: `loading-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
-            progress: Math.round(((overallProgress.current / overallProgress.total) * 100)),
-            message: `Loading ${name}... (${overallProgress.current + 1}/${overallProgress.total})`,
-            modelName: name
-          }
-        }));
-      }
-      
-      const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
-      const { DRACOLoader } = await import('three/examples/jsm/loaders/DRACOLoader.js');
-      
-      const loader = new GLTFLoader();
-      const dracoLoader = new DRACOLoader();
-      dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
-      loader.setDRACOLoader(dracoLoader);
-      
-      return new Promise((resolve, reject) => {
-        loader.load(
-          url,
-          (gltf) => {
-            console.log(`✅ ${name} loaded successfully`);
-            
-            // Update progress for this model completion
-            if (window.dispatchEvent) {
-              window.dispatchEvent(new CustomEvent('mobile-loading-update', {
-                detail: {
-                  phase: `completed-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
-                  progress: Math.round(((overallProgress.current + 1) / overallProgress.total) * 100),
-                  message: `${name} loaded successfully`,
-                  modelName: name
-                }
-              }));
-            }
-            
-            resolve(gltf);
-          },
-          (progress) => {
-            const modelPercent = Math.round((progress.loaded / progress.total) * 100);
-            const overallPercent = Math.round(((overallProgress.current + (progress.loaded / progress.total)) / overallProgress.total) * 100);
-            
-            // Update fine-grained progress
-            if (window.dispatchEvent) {
-              window.dispatchEvent(new CustomEvent('mobile-loading-update', {
-                detail: {
-                  phase: `loading-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
-                  progress: overallPercent,
-                  message: `Loading ${name}... ${modelPercent}%`,
-                  modelName: name
-                }
-              }));
-            }
-            
-            console.log(`📊 ${name}: ${modelPercent}% (overall: ${overallPercent}%)`);
-          },
-          (error) => {
-            console.error(`❌ Failed to load ${name}:`, error);
-            
-            // Dispatch error
-            if (window.dispatchEvent) {
-              window.dispatchEvent(new CustomEvent('mobile-loading-error', {
-                detail: {
-                  error: error.message,
-                  modelName: name,
-                  phase: `error-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`
-                }
-              }));
-            }
-            
-            reject(error);
-          }
-        );
-      });
-    };
-    
-    const loadSequentially = async () => {
-      try {
-        // Initialize loading UI
-        if (window.dispatchEvent) {
-          window.dispatchEvent(new CustomEvent('mobile-loading-start', {
-            detail: {
-              phase: 'mobile-sequential-loading',
-              message: 'Starting mobile-optimized loading...'
-            }
-          }));
+
+    if (!isMobile || mobilePhaseDispatch.current.started) return;
+
+    mobilePhaseDispatch.current.started = true;
+
+    if (window.dispatchEvent) {
+
+      window.dispatchEvent(new CustomEvent('mobile-loading-start', {
+
+        detail: {
+
+          phase: 'mobile-environment-loading',
+
+          message: 'Loading Draco-compressed environment assets...'
+
         }
-        
-        // Load others2 first (1/4 = 25%)
-        setModels(prev => ({ ...prev, others: { ...prev.others, loadingState: 'loading' } }));
-        const othersGltf = await loadModel('/models/environment/others2.glb', 'Environment Objects', {current: 0, total: 4});
-        setModels(prev => ({ ...prev, others: { gltf: othersGltf, loadingState: 'complete' } }));
-        
-        // Wait for memory pressure to ease
-        await new Promise(resolve => setTimeout(resolve, 300));
-        
-        // Load frame (2/4 = 50%)
-        setModels(prev => ({ ...prev, frame: { ...prev.frame, loadingState: 'loading' } }));
-        const frameGltf = await loadModel('/models/environment/frame-raw-14.glb', 'Building Frame', {current: 1, total: 4});
-        setModels(prev => ({ ...prev, frame: { gltf: frameGltf, loadingState: 'complete' } }));
-        
-        await new Promise(resolve => setTimeout(resolve, 300));
-        
-        // Load roof (3/4 = 75%)
-        setModels(prev => ({ ...prev, roof: { ...prev.roof, loadingState: 'loading' } }));
-        const roofGltf = await loadModel('/models/environment/roof and walls.glb', 'Roof & Walls', {current: 2, total: 4});
-        setModels(prev => ({ ...prev, roof: { gltf: roofGltf, loadingState: 'complete' } }));
-        
-        await new Promise(resolve => setTimeout(resolve, 300));
-        
-        // Load stages (4/4 = 100%)
-        setModels(prev => ({ ...prev, stages: { ...prev.stages, loadingState: 'loading' } }));
-        const stagesGltf = await loadModel('/models/environment/stages.glb', 'Production Stages', {current: 3, total: 4});
-        setModels(prev => ({ ...prev, stages: { gltf: stagesGltf, loadingState: 'complete' } }));
-        
-        // Final completion
-        if (window.dispatchEvent) {
-          window.dispatchEvent(new CustomEvent('mobile-loading-complete', {
-            detail: {
-              phase: 'mobile-models-loaded',
-              progress: 100,
-              message: 'All models loaded successfully!'
-            }
-          }));
-        }
-        
-        console.log('🎉 All models loaded successfully on mobile!');
-      } catch (error) {
-        console.error('❌ Sequential loading failed:', error);
-        
-        // Dispatch error event
-        if (window.dispatchEvent) {
-          window.dispatchEvent(new CustomEvent('mobile-loading-error', {
-            detail: {
-              error: error.message || 'Unknown error',
-              phase: 'sequential-loading-failed'
-            }
-          }));
-        }
-      }
-    };
-    
-    loadSequentially();
+
+      }));
+
+    }
+
   }, [isMobile]);
-  
-  // Process others model when loaded
+
+
+
   useEffect(() => {
-    const scene = isMobile ? models.others.gltf?.scene : others.scene;
-    if (scene) {
-      console.log('🔵 Processing Others2 model...');
-      if (isMobile) console.log('📱 Mobile: Processing Others2 with aggressive optimizations');
-      
+
+    if (!isMobile || !othersReady || mobilePhaseDispatch.current.others) return;
+
+    mobilePhaseDispatch.current.others = true;
+
+    sendMobileUpdate('others', 1, 'Environment assets ready (1/4)');
+
+  }, [isMobile, othersReady]);
+
+
+
+  useEffect(() => {
+
+    if (!isMobile || !frameReady || mobilePhaseDispatch.current.frame) return;
+
+    mobilePhaseDispatch.current.frame = true;
+
+    sendMobileUpdate('frame', 2, 'Frame ready (2/4)');
+
+  }, [isMobile, frameReady]);
+
+
+
+  useEffect(() => {
+
+    if (!isMobile || !roofReady || mobilePhaseDispatch.current.roof) return;
+
+    mobilePhaseDispatch.current.roof = true;
+
+    sendMobileUpdate('roof', 3, 'Roof & walls ready (3/4)');
+
+  }, [isMobile, roofReady]);
+
+
+
+  useEffect(() => {
+
+    if (!isMobile || !stagesReady || mobilePhaseDispatch.current.stages) return;
+
+    mobilePhaseDispatch.current.stages = true;
+
+    sendMobileUpdate('stages', 4, 'Stages ready (4/4)');
+
+  }, [isMobile, stagesReady]);
+
+
+
+  useEffect(() => {
+
+    if (!isMobile) return;
+
+    if (othersReady && frameReady && roofReady && stagesReady && !mobilePhaseDispatch.current.completed) {
+
+      mobilePhaseDispatch.current.completed = true;
+
+      if (window.dispatchEvent) {
+
+        window.dispatchEvent(new CustomEvent('mobile-loading-complete', {
+
+          detail: {
+
+            phase: 'complete',
+
+            progress: 100,
+
+            message: 'All environment models loaded!'
+
+          }
+
+        }));
+
+      }
+
+    }
+
+  }, [isMobile, othersReady, frameReady, roofReady, stagesReady]);
+
+
+
+// Process environment models when loaded
+
+  useEffect(() => {
+
+    if (!otherScenes.length) return;
+
+    console.log('dY"? Processing environment set (others)...');
+
+    otherScenes.forEach((scene) => {
+
       makeFacesBehave(scene, true);
+
       
-      let meshCount = 0;
-      let shadowCount = 0;
-      
+
       scene.traverse((child) => {
+
         if ((child as THREE.Mesh).isMesh) {
+
           const mesh = child as THREE.Mesh;
-          meshCount++;
+
           
-          if (mesh.geometry && mesh.geometry.attributes.position) {
-            const vertCount = mesh.geometry.attributes.position.count;
-            log.verbose(`  Mesh: ${mesh.name || 'unnamed'} (${vertCount} vertices)`);
-            
-            if (isMobile) {
-              // Use comprehensive mobile optimization
-              optimizeMeshForMobile(mesh);
-            }
-            // Desktop: NO simplification - keep original quality
+
+          if (mesh.geometry && mesh.geometry.attributes.position && isMobile) {
+
+            log.verbose(`  Mesh: ${mesh.name || 'unnamed'} (${mesh.geometry.attributes.position.count} vertices)`);
+
+            optimizeMeshForMobile(mesh);
+
           }
+
           
+
           if (shadowsEnabled) {
+
             mesh.castShadow = true;
+
             mesh.receiveShadow = true;
-            shadowCount++;
+
           } else if (isMobile) {
-            // Explicitly disable shadows on mobile
+
             mesh.castShadow = false;
+
             mesh.receiveShadow = false;
+
           }
+
           
+
           if (mesh.material) {
+
             const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+
             materials.forEach((mat: any) => {
+
               if (shadowsEnabled) {
+
                 mat.shadowSide = THREE.FrontSide;
+
               }
+
               
-              // Apply polygon offset to prevent z-fighting on coplanar surfaces
+
               const meshNameLower = (mesh.name || '').toLowerCase();
+
               if (meshNameLower.includes('road') || meshNameLower.includes('plaza') || 
+
                   meshNameLower.includes('roof') || meshNameLower.includes('floor') ||
+
                   meshNameLower.includes('ground') || meshNameLower.includes('deck')) {
+
                 applyPolygonOffset(mat);
+
               }
+
               
+
               if (isMobile) {
+
                 if (mat.normalMap) {
+
                   mat.normalMap.dispose();
+
                   mat.normalMap = null as any;
-                  log.verbose(`  📄 Disposed normalMap from ${mesh.name || 'unnamed'}`);
+
                 }
+
                 if (mat.roughnessMap) {
+
                   mat.roughnessMap.dispose();
+
                   mat.roughnessMap = null as any;
+
                 }
+
                 if (mat.metalnessMap) {
+
                   mat.metalnessMap.dispose();
+
                   mat.metalnessMap = null as any;
+
                 }
+
                 mat.envMapIntensity = 0.6;
+
               }
+
               
+
               if (mat.map) mat.map.needsUpdate = true;
-              mat.needsUpdate = true;
-            });
-          }
-        }
-      });
-      
-      // Mobile: Force garbage collection and dispose intermediate data
-      if (isMobile) {
-        console.log('🗑️ Mobile: Triggering garbage collection after Others2 processing');
-        // Force browser garbage collection if available
-        if ((window as any).gc) {
-          (window as any).gc();
-        }
-        // Request idle callback to clean up
-        if (window.requestIdleCallback) {
-          window.requestIdleCallback(() => {
-            console.log('🌱 Mobile: Idle cleanup after Others2');
-          });
-        }
-      }
-    }
-  }, [isMobile ? models.others.gltf?.scene : others.scene, isMobile]);
 
-  // Process frame model when loaded
-  useEffect(() => {
-    const scene = isMobile ? models.frame.gltf?.scene : frame.scene;
-    if (scene) {
-      console.log('🔵 Processing Frame model...');
-      if (isMobile) console.log('📱 Mobile: Processing Frame with optimizations');
-      
-      makeFacesBehave(scene);
-      log.verbose('🔧 Running selective face fixer on Frame...');
-      fixInvertedFacesSelective(scene);
-      
-      // Apply mobile optimizations
-      if (isMobile) {
-        scene.traverse((child) => {
-          if ((child as THREE.Mesh).isMesh) {
-            const mesh = child as THREE.Mesh;
-            mesh.castShadow = false;
-            mesh.receiveShadow = false;
-            
-            if (shouldSimplifyMesh(mesh, isMobile) && mesh.geometry) {
-              const originalVerts = mesh.geometry.attributes.position.count;
-              mesh.geometry = simplifyGeometryForMobile(mesh.geometry, 0.7);
-              const newVerts = mesh.geometry.attributes.position.count;
-              console.log(`📉 Frame simplified ${mesh.name}: ${originalVerts} → ${newVerts} vertices`);
-            }
+              mat.needsUpdate = true;
+
+            });
+
           }
+
+        }
+
+      });
+
+    });
+
+    
+
+    if (isMobile) {
+
+      if ((window as any).gc) {
+
+        (window as any).gc();
+
+      }
+
+      if (window.requestIdleCallback) {
+
+        window.requestIdleCallback(() => {
+
+          console.log('dYO? Mobile: Idle cleanup after environment processing');
+
         });
-      }
-      
-      
-      // Mobile: Cleanup after frame processing
-      if (isMobile) {
-        console.log('🗑️ Mobile: Cleanup after Frame processing');
-        if ((window as any).gc) {
-          (window as any).gc();
-        }
-      }
-    }
-  }, [isMobile ? models.frame.gltf?.scene : frame.scene, isMobile]);
 
-  // Process roof model when loaded
+      }
+
+    }
+
+  }, [otherScenes, isMobile, shadowsEnabled]);
+
+
+
+// Process frame model when loaded
+
   useEffect(() => {
-    const scene = isMobile ? models.roof.gltf?.scene : roof.scene;
+
+    const scene = frame.scene;
+
     if (scene) {
-      console.log('🔵 Processing Roof model...');
-      if (isMobile) console.log('📱 Mobile: Processing Roof with optimizations');
+
+      console.log('dY"? Processing Frame model...');
+
+      if (isMobile) console.log('dY"? Mobile: Processing Frame with optimizations');
+
       
+
       makeFacesBehave(scene);
+
+      log.verbose('dY"? Running selective face fixer on Frame...');
+
+      fixInvertedFacesSelective(scene);
+
       
-      let meshCount = 0;
-      scene.traverse((child) => {
-        if ((child as THREE.Mesh).isMesh) {
-          const mesh = child as THREE.Mesh;
-          meshCount++;
-          
-          if (shadowsEnabled) {
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
-            
-            if (mesh.material) {
-              if (Array.isArray(mesh.material)) {
-                mesh.material.forEach(mat => {
-                  mat.shadowSide = THREE.FrontSide;
-                });
-              } else {
-                mesh.material.shadowSide = THREE.FrontSide;
-              }
-            }
-          } else if (isMobile) {
-            // Explicitly disable shadows on mobile
+
+      if (isMobile) {
+
+        scene.traverse((child) => {
+
+          if ((child as THREE.Mesh).isMesh) {
+
+            const mesh = child as THREE.Mesh;
+
             mesh.castShadow = false;
-            mesh.receiveShadow = false;
-            
-            // Apply mobile geometry simplification
-            if (shouldSimplifyMesh(mesh, isMobile) && mesh.geometry) {
-              const originalVerts = mesh.geometry.attributes.position.count;
-              mesh.geometry = simplifyGeometryForMobile(mesh.geometry, 0.7);
-              const newVerts = mesh.geometry.attributes.position.count;
-              console.log(`📉 Roof simplified ${mesh.name}: ${originalVerts} → ${newVerts} vertices`);
-            }
-          }
-        }
-      });
-      
-      // Mobile: Cleanup after roof processing
-      if (isMobile) {
-        console.log('🗑️ Mobile: Cleanup after Roof processing');
-        if ((window as any).gc) {
-          (window as any).gc();
-        }
-      }
-    }
-  }, [isMobile ? models.roof.gltf?.scene : roof.scene, isMobile]);
 
-  // Process stages model when loaded
+            mesh.receiveShadow = false;
+
+            
+
+            if (shouldSimplifyMesh(mesh, isMobile) && mesh.geometry) {
+
+              const originalVerts = mesh.geometry.attributes.position.count;
+
+              mesh.geometry = simplifyGeometryForMobile(mesh.geometry, 0.7);
+
+              const newVerts = mesh.geometry.attributes.position.count;
+
+              console.log(`dY"% Frame simplified ${mesh.name}: ${originalVerts} ?+' ${newVerts} vertices`);
+
+            }
+
+          }
+
+        });
+
+      }
+
+      
+
+      if (isMobile) {
+
+        console.log('dY-`?,? Mobile: Cleanup after Frame processing');
+
+        if ((window as any).gc) {
+
+          (window as any).gc();
+
+        }
+
+      }
+
+    }
+
+  }, [frame.scene, isMobile]);
+
+
+
+// Process roof model when loaded
+
   useEffect(() => {
-    const scene = isMobile ? models.stages.gltf?.scene : stages.scene;
+
+    const scene = roof.scene;
+
     if (scene) {
-      console.log('🔵 Processing Stages model...');
-      if (isMobile) console.log('📱 Mobile: Processing Stages with optimizations');
+
+      console.log('dY"? Processing Roof model...');
+
+      if (isMobile) console.log('dY"? Mobile: Processing Roof with optimizations');
+
       
+
       makeFacesBehave(scene);
+
       
-      let meshCount = 0;
+
       scene.traverse((child) => {
+
         if ((child as THREE.Mesh).isMesh) {
+
           const mesh = child as THREE.Mesh;
-          meshCount++;
+
           
+
+          if (shadowsEnabled) {
+
+            mesh.castShadow = true;
+
+            mesh.receiveShadow = true;
+
+            
+
+            if (mesh.material) {
+
+              if (Array.isArray(mesh.material)) {
+
+                mesh.material.forEach(mat => {
+
+                  mat.shadowSide = THREE.FrontSide;
+
+                });
+
+              } else {
+
+                mesh.material.shadowSide = THREE.FrontSide;
+
+              }
+
+            }
+
+          } else if (isMobile) {
+
+            mesh.castShadow = false;
+
+            mesh.receiveShadow = false;
+
+            
+
+            if (shouldSimplifyMesh(mesh, isMobile) && mesh.geometry) {
+
+              const originalVerts = mesh.geometry.attributes.position.count;
+
+              mesh.geometry = simplifyGeometryForMobile(mesh.geometry, 0.7);
+
+              const newVerts = mesh.geometry.attributes.position.count;
+
+              console.log(`dY"% Roof simplified ${mesh.name}: ${originalVerts} ?+' ${newVerts} vertices`);
+
+            }
+
+          }
+
+        }
+
+      });
+
+      
+
+      if (isMobile) {
+
+        console.log('dY-`?,? Mobile: Cleanup after Roof processing');
+
+        if ((window as any).gc) {
+
+          (window as any).gc();
+
+        }
+
+      }
+
+    }
+
+  }, [roof.scene, isMobile]);
+
+
+
+// Process stages model when loaded
+
+  useEffect(() => {
+
+    const scene = stages.scene;
+
+    if (scene) {
+
+      console.log('dY"? Processing Stages model...');
+
+      if (isMobile) console.log('dY"? Mobile: Processing Stages with optimizations');
+
+      
+
+      makeFacesBehave(scene);
+
+      
+
+      let meshCount = 0;
+
+      scene.traverse((child) => {
+
+        if ((child as THREE.Mesh).isMesh) {
+
+          const mesh = child as THREE.Mesh;
+
+          meshCount++;
+
+          
+
           mesh.visible = true;
-          mesh.frustumCulled = false;
-          
-          if (mesh.material) {
-            const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-            materials.forEach((mat: any) => {
-              mat.visible = true;
-              mat.transparent = false;
-              mat.opacity = 1.0;
-              mat.side = THREE.FrontSide;
-              mat.depthWrite = true;
-              mat.depthTest = true;
-              mat.needsUpdate = true;
-            });
-          }
-          
-          if (shadowsEnabled) {
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
-            
-            if (mesh.material) {
-              if (Array.isArray(mesh.material)) {
-                mesh.material.forEach(mat => {
-                  mat.shadowSide = THREE.FrontSide;
-                });
-              } else {
-                mesh.material.shadowSide = THREE.FrontSide;
-              }
-            }
-          } else if (isMobile) {
-            // Explicitly disable shadows on mobile
-            mesh.castShadow = false;
-            mesh.receiveShadow = false;
-            
-            // Apply mobile geometry simplification
-            if (shouldSimplifyMesh(mesh, isMobile) && mesh.geometry) {
-              const originalVerts = mesh.geometry.attributes.position.count;
-              mesh.geometry = simplifyGeometryForMobile(mesh.geometry, 0.7);
-              const newVerts = mesh.geometry.attributes.position.count;
-              console.log(`📉 Stages simplified ${mesh.name}: ${originalVerts} → ${newVerts} vertices`);
-            }
-          }
-        }
-      });
-      
-      console.log(`✅ Stages configured: ${meshCount} meshes, all set to visible`);
-      
-      // Mobile: Final cleanup after all models processed
-      if (isMobile) {
-        console.log('🗑️ Mobile: Final cleanup after Stages processing');
-        if ((window as any).gc) {
-          (window as any).gc();
-        }
-        
-        // Final memory check
-        if (navigator && (navigator as any).deviceMemory) {
-          console.log(`📊 Device memory: ${(navigator as any).deviceMemory}GB`);
-        }
-        
-        // WebGL memory info
-        if (gl && gl.info) {
-          const info = gl.info;
-          console.log('📊 WebGL memory:', {
-            geometries: info.memory.geometries,
-            textures: info.memory.textures,
-            programs: info.programs?.length || 0
-          });
-        }
-        
-        console.log('✅ Mobile: All models loaded and optimized successfully!');
-      }
-    }
-  }, [isMobile ? models.stages.gltf?.scene : stages.scene, isMobile, gl]);
 
-  return (
-    <>
-      {/* Mobile: Render NOTHING (environment models skipped to prevent crash) */}
-      {/* Desktop: Render all models */}
-      {!isMobile && (
-        <>
-          {others.scene && <primitive object={others.scene} />}
-          {frame.scene && <primitive object={frame.scene} />}
-          {roof.scene && <primitive object={roof.scene} />}
-          {stages.scene && <primitive object={stages.scene} />}
-        </>
-      )}
+          mesh.frustumCulled = false;
+
+          
+
+          if (mesh.material) {
+
+            const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+
+            materials.forEach((mat: any) => {
+
+              mat.visible = true;
+
+              mat.transparent = false;
+
+              mat.opacity = 1.0;
+
+              mat.side = THREE.FrontSide;
+
+              mat.depthWrite = true;
+
+              mat.depthTest = true;
+
+              mat.needsUpdate = true;
+
+            });
+
+          }
+
+          
+
+          if (shadowsEnabled) {
+
+            mesh.castShadow = true;
+
+            mesh.receiveShadow = true;
+
+            
+
+            if (mesh.material) {
+
+              if (Array.isArray(mesh.material)) {
+
+                mesh.material.forEach(mat => {
+
+                  mat.shadowSide = THREE.FrontSide;
+
+                });
+
+              } else {
+
+                mesh.material.shadowSide = THREE.FrontSide;
+
+              }
+
+            }
+
+          } else if (isMobile) {
+
+            mesh.castShadow = false;
+
+            mesh.receiveShadow = false;
+
+            
+
+            if (shouldSimplifyMesh(mesh, isMobile) && mesh.geometry) {
+
+              const originalVerts = mesh.geometry.attributes.position.count;
+
+              mesh.geometry = simplifyGeometryForMobile(mesh.geometry, 0.7);
+
+              const newVerts = mesh.geometry.attributes.position.count;
+
+              console.log(`dY"% Stages simplified ${mesh.name}: ${originalVerts} ?+' ${newVerts} vertices`);
+
+            }
+
+          }
+
+        }
+
+      });
+
       
-      {/* Mobile gets empty scene - unit boxes will render via GLBManager */}
-      {isMobile && (
-        <group>
-          {/* Empty - just a placeholder */}
-          {/* Unit boxes (97 tiny GLBs) will render separately via GLBManager */}
-          {/* Total mobile scene: ~86KB unit boxes + sky gradient = minimal memory */}
-        </group>
-      )}
-    </>
-  );
-}
+
+      console.log('?o. Stages configured: ' + meshCount + ' meshes, all set to visible');
+
+      
+
+      if (isMobile) {
+
+        console.log('dY-`?,? Mobile: Final cleanup after Stages processing');
+
+        if ((window as any).gc) {
+
+          (window as any).gc();
+
+        }
+
+        
+
+        if (navigator && (navigator as any).deviceMemory) {
+
+          console.log(`dY"S Device memory: ${(navigator as any).deviceMemory}GB`);
+
+        }
+
+        
+
+        if (gl && gl.info) {
+
+          const info = gl.info;
+
+          console.log('dY"S WebGL memory:', {
+
+            geometries: info.memory.geometries,
+
+            textures: info.memory.textures,
+
+            programs: info.programs?.length || 0
+
+          });
+
+        }
+
+        
+
+        console.log('?o. Mobile: All models loaded and optimized successfully!');
+
+      }
+
+    }
+
+  }, [stages.scene, isMobile, gl]);
+
+
+
+  return (
+    <>
+      {otherScenes.map((scene, index) => (
+        <primitive key={`environment-other-${index}`} object={scene} />
+      ))}
+      {frame.scene && <primitive object={frame.scene} />}
+      {roof.scene && <primitive object={roof.scene} />}
+      {stages.scene && <primitive object={stages.scene} />}
+    </>
+  );
+}

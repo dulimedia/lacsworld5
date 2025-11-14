@@ -1,7 +1,6 @@
-import { useEffect, useRef } from "react";
+﻿import { useEffect, useRef } from "react";
 import { useThree } from "@react-three/fiber";
 import { DirectionalLight, OrthographicCamera, PCFSoftShadowMap, AmbientLight } from "three";
-import { detectTier } from "../lib/graphics/tier";
 import { useFitDirectionalLightShadow } from "./ShadowFit";
 import { logger } from "../utils/logger";
 import { PerfFlags } from "../perf/PerfFlags";
@@ -9,13 +8,19 @@ import { PerfFlags } from "../perf/PerfFlags";
 export interface LightingProps {
   shadowBias?: number;
   shadowNormalBias?: number;
+  shadowMaxExtent?: number;
+  shadowMargin?: number;
+  sunPosition?: [number, number, number];
   onLightCreated?: (light: DirectionalLight) => void;
 }
 
-export function Lighting({ 
-  shadowBias = -0.0003, 
-  shadowNormalBias = 0.05,
-  onLightCreated 
+export function Lighting({
+  shadowBias,
+  shadowNormalBias,
+  shadowMaxExtent,
+  shadowMargin,
+  sunPosition,
+  onLightCreated
 }: LightingProps = {}) {
   const { scene, gl } = useThree();
   const sunRef = useRef<DirectionalLight | null>(null);
@@ -25,87 +30,86 @@ export function Lighting({
     let cancelled = false;
 
     const setupLighting = () => {
-      const tier = PerfFlags.tier === 'mobileLow' ? 'mobile-low' : 'desktop-high';
+      const tier = PerfFlags.qualityTier === 'LOW'
+        ? 'mobile-low'
+        : PerfFlags.qualityTier === 'BALANCED'
+          ? 'mobile-high'
+          : 'desktop-high';
       const isMobileLow = tier === 'mobile-low';
       const isMobileHigh = tier === 'mobile-high';
       const isMobile = isMobileLow || isMobileHigh;
       isMobileRef.current = isMobile;
       if (cancelled) return;
 
-      // Clean up old lights
-      const old = scene.children.filter(o => o.userData.__sunLight || o.userData.__ambientLight);
-      old.forEach(o => scene.remove(o));
+      const resolvedShadowBias = shadowBias ?? PerfFlags.SHADOW_BIAS;
+      const resolvedShadowNormalBias = shadowNormalBias ?? PerfFlags.SHADOW_NORMAL_BIAS;
+      const resolvedMapSize = PerfFlags.SHADOW_MAP_SIZE;
+      const resolvedSunPosition: [number, number, number] = sunPosition ?? [-40, 30, 20];
 
-      // Create directional light
+      const oldLights = scene.children.filter(o => o.userData.__sunLight || o.userData.__ambientLight);
+      oldLights.forEach(o => scene.remove(o));
+
       const sun = new DirectionalLight(0xffffff, isMobile ? 3.2 : 7.2);
-      sun.position.set(-40, 30, 20);
-      
-      // Mobile-low: No shadows
-      // Mobile-high: Lightweight shadows
-      // Desktop: Full quality shadows
+      sun.position.set(...resolvedSunPosition);
+      sun.userData.__sunLight = true;
+
       if (isMobileLow) {
         sun.castShadow = false;
         gl.shadowMap.enabled = false;
-        console.log('📱 Mobile-low: Shadows DISABLED for performance');
+        console.log('Mobile-low: shadows disabled');
       } else if (isMobileHigh) {
         sun.castShadow = true;
         gl.shadowMap.enabled = true;
         gl.shadowMap.type = PCFSoftShadowMap;
-        
-        const mapSize = 2048;
-        sun.shadow.mapSize.set(mapSize, mapSize);
-        sun.shadow.bias = shadowBias;
-        sun.shadow.normalBias = shadowNormalBias;
+
+        sun.shadow.mapSize.set(resolvedMapSize, resolvedMapSize);
+        sun.shadow.bias = resolvedShadowBias;
+        sun.shadow.normalBias = resolvedShadowNormalBias;
         sun.shadow.radius = 2;
-        
+
         const cam = sun.shadow.camera as OrthographicCamera;
-        cam.left = -60;
-        cam.right = 60;
-        cam.top = 60;
-        cam.bottom = -60;
+        cam.left = -70;
+        cam.right = 70;
+        cam.top = 70;
+        cam.bottom = -70;
         cam.near = 0.5;
-        cam.far = 150;
+        cam.far = 180;
         cam.updateProjectionMatrix();
-        
-        console.log('📱 Mobile-high: Lightweight shadows enabled (2K map)');
+
+        console.log('Mobile-high: lightweight shadows enabled');
       } else {
         sun.castShadow = true;
         gl.shadowMap.enabled = true;
         gl.shadowMap.type = PCFSoftShadowMap;
-        
-        const mapSize = 4096;
-        sun.shadow.mapSize.set(mapSize, mapSize);
-        sun.shadow.bias = shadowBias;
-        sun.shadow.normalBias = shadowNormalBias;
-        sun.shadow.radius = 0;
-        
+
+        sun.shadow.mapSize.set(resolvedMapSize, resolvedMapSize);
+        sun.shadow.bias = resolvedShadowBias;
+        sun.shadow.normalBias = resolvedShadowNormalBias;
+        sun.shadow.radius = 0.5;
+
         const cam = sun.shadow.camera as OrthographicCamera;
-        cam.left = -80;
-        cam.right = 80;
-        cam.top = 80;
-        cam.bottom = -80;
+        cam.left = -90;
+        cam.right = 90;
+        cam.top = 90;
+        cam.bottom = -90;
         cam.near = 0.5;
-        cam.far = 220;
+        cam.far = 260;
         cam.updateProjectionMatrix();
-        
-        logger.log('LOADING', '🌅', `Desktop: Shadow map initialized: ${mapSize}×${mapSize}`);
+
+        logger.log('LOADING', 'SUN', `Desktop: shadow map initialized ${resolvedMapSize}x${resolvedMapSize}`);
       }
 
-      sun.userData.__sunLight = true;
       scene.add(sun);
       sunRef.current = sun;
-      
-      // Add ambient light based on tier
+
       if (isMobileLow) {
         const ambient = new AmbientLight(0x404040, 0.6);
         ambient.userData.__ambientLight = true;
         scene.add(ambient);
-        logger.log('LOADING', '💡', 'Mobile-low: Reduced ambient light (no shadows)');
       } else if (isMobileHigh) {
         const ambient = new AmbientLight(0x303030, 0.4);
         ambient.userData.__ambientLight = true;
         scene.add(ambient);
-        logger.log('LOADING', '💡', 'Mobile-high: Reduced ambient light with shadows');
       } else {
         const ambient = new AmbientLight(0x404040, 0.3);
         ambient.userData.__ambientLight = true;
@@ -113,26 +117,25 @@ export function Lighting({
       }
 
       onLightCreated?.(sun);
-
-      logger.log('LOADING', '🌅', `Lighting configured for ${tier} (shadows: ${sun.castShadow})`);
+      logger.log('LOADING', 'SUN', `Lighting configured for ${tier} (shadows: ${sun.castShadow})`);
     };
 
     setupLighting();
 
-    return () => { 
+    return () => {
       cancelled = true;
       const lights = scene.children.filter(o => o.userData.__sunLight || o.userData.__ambientLight);
-      lights.forEach(l => scene.remove(l)); 
+      lights.forEach(l => scene.remove(l));
       sunRef.current = null;
     };
-  }, [scene, gl, shadowBias, shadowNormalBias, onLightCreated]);
+  }, [scene, gl, shadowBias, shadowNormalBias, sunPosition, onLightCreated]);
 
   useFitDirectionalLightShadow(
     isMobileRef.current ? null : sunRef.current,
     {
-      maxExtent: 100,
-      margin: 3,
-      mapSize: 4096,
+      maxExtent: shadowMaxExtent ?? PerfFlags.SHADOW_MAX_EXTENT,
+      margin: shadowMargin ?? PerfFlags.SHADOW_MARGIN,
+      mapSize: PerfFlags.SHADOW_MAP_SIZE,
       snap: true
     }
   );

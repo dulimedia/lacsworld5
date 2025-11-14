@@ -27,9 +27,13 @@ export const PerfFlags = (() => {
     isTouch: isTouchDevice,
     
     DPR_MAX: qualityTier === 'LOW' ? 1.2 : qualityTier === 'BALANCED' ? 1.3 : 2.0,
-    SHADOW_MAP_SIZE: qualityTier === 'LOW' ? 1024 : qualityTier === 'BALANCED' ? 1024 : 2048,
+    SHADOW_MAP_SIZE: qualityTier === 'LOW' ? 1024 : qualityTier === 'BALANCED' ? 2048 : 4096,
     SHADOWS_ENABLED: qualityTier !== 'LOW',
     MAX_TEXTURE_DIM: qualityTier === 'LOW' ? 1024 : qualityTier === 'BALANCED' ? 2048 : 4096,
+    SHADOW_MAX_EXTENT: qualityTier === 'LOW' ? 100 : qualityTier === 'BALANCED' ? 180 : 210,
+    SHADOW_MARGIN: qualityTier === 'LOW' ? 4 : qualityTier === 'BALANCED' ? 5.5 : 6,
+    SHADOW_BIAS: qualityTier === 'LOW' ? -0.0005 : qualityTier === 'BALANCED' ? -0.002 : -0.006,
+    SHADOW_NORMAL_BIAS: qualityTier === 'LOW' ? 0.15 : qualityTier === 'BALANCED' ? 0.3 : 0.35,
     
     dynamicShadows: false,
     ssr: false,

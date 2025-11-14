@@ -64,7 +64,7 @@ export interface GLBState {
   // Getters
   getGLBsByBuilding: (building: string) => GLBNodeInfo[];
   getGLBsByFloor: (building: string, floor: string) => GLBNodeInfo[];
-  getGLBByUnit: (building: string, floor: string, unit: string) => GLBNodeInfo | undefined;
+  getGLBByUnit: (building: string | null, floor: string | null, unit: string | null) => GLBNodeInfo | undefined;
   getVisibleGLBs: () => GLBNodeInfo[];
   getBuildingList: () => string[];
   getFloorList: (building: string) => string[];
@@ -87,6 +87,21 @@ const GLB_STRUCTURE = {
   "Tower Building": {
     "Main Floor": ["T-100", "T-110", "T-200", "T-210", "T-220", "T-230", "T-300", "T-320", "T-400 ", "T-410 ", "T-420 ", "T-430 ", "T-450 ", "T-500", "T-530", "T-550", "T-600", "T-700 ", "T-800 ", "T-900 ", "T-950", "T-1000 ", "T-1100 ", "T-1200 "]
   }
+};
+
+const normalizeFloorKey = (floor: string | null | undefined) =>
+  (floor ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+
+const normalizeUnitKey = (unit: string) =>
+  unit.replace(/\s+/g, ' ').trim().toUpperCase();
+
+const buildNodeKey = (building: string, floor: string | null | undefined, unit: string) => {
+  const normUnit = normalizeUnitKey(unit);
+  if (building === "Tower Building" || (building === "Stages" && (!floor || floor === ""))) {
+    return `${building}/${normUnit}`;
+  }
+  const normFloor = normalizeFloorKey(floor);
+  return `${building}/${normFloor}/${normUnit}`;
 };
 
 export const useGLBState = create<GLBState>((set, get) => ({
@@ -112,15 +127,7 @@ export const useGLBState = create<GLBState>((set, get) => ({
     Object.entries(GLB_STRUCTURE).forEach(([building, floors]) => {
       Object.entries(floors).forEach(([floor, units]) => {
         units.forEach(unit => {
-          // Special cases for key generation
-          let key;
-          if (building === "Tower Building") {
-            key = `${building}/${unit}`;
-          } else if (building === "Stages" && floor === "") {
-            key = `${building}/${unit}`; // Stages with empty floor - no floor in key
-          } else {
-            key = `${building}/${floor}/${unit}`;
-          }
+          const key = buildNodeKey(building, floor, unit);
           
           // Special case for Tower Building - files are directly in building folder
           let path;
@@ -302,31 +309,19 @@ export const useGLBState = create<GLBState>((set, get) => ({
     const { glbNodes } = get();
     
     if (building && unit) {
-      // Construct the key to find the unit
-      let key;
-      if (building === "Tower Building") {
-        key = `${building}/${unit}`;
-      } else if (building === "Stages" && (!floor || floor === "")) {
-        key = `${building}/${unit}`;
-      } else {
-        key = `${building}/${floor}/${unit}`;
+      const key = buildNodeKey(building, floor ?? null, unit);
+      const hoveredNode = glbNodes.get(key);
+      if (!hoveredNode) {
+        return;
       }
       
-      const foundNode = glbNodes.get(key);
-      
-      // Set hover state
       set({ hoveredUnit: key });
       
-      // Hide all units first
       glbNodes.forEach((node, nodeKey) => {
         get().setGLBState(nodeKey, 'invisible');
       });
       
-      // Then make ONLY the hovered unit glow
-      const hoveredNode = glbNodes.get(key);
-      if (hoveredNode) {
-        get().setGLBState(key, 'glowing');
-      }
+      get().setGLBState(key, 'glowing');
     } else {
       // Clear hover
       set({ hoveredUnit: null });
@@ -444,7 +439,7 @@ export const useGLBState = create<GLBState>((set, get) => ({
           result.push(node);
         }
       } else {
-        if (node.building === building && node.floor === floor) {
+        if (node.building === building && normalizeFloorKey(node.floor) === normalizeFloorKey(floor)) {
           result.push(node);
         }
       }
@@ -453,23 +448,12 @@ export const useGLBState = create<GLBState>((set, get) => ({
     return result;
   },
 
-  getGLBByUnit: (building: string, floor: string, unit: string) => {
+  getGLBByUnit: (building: string | null, floor: string | null, unit: string | null) => {
     const { glbNodes } = get();
+    if (!building || !unit) return undefined;
     
-    // Special cases for key generation
-    let key;
-    if (building === "Tower Building") {
-      key = `${building}/${unit}`;
-    } else if (building === "Stages" && floor === "") {
-      key = `${building}/${unit}`; // Stages with empty floor - no floor in key
-    } else {
-      key = `${building}/${floor}/${unit}`;
-    }
-    
-    
-    const result = glbNodes.get(key);
-    
-    return result;
+    const key = buildNodeKey(building, floor, unit);
+    return glbNodes.get(key);
   },
 
   getVisibleGLBs: () => {

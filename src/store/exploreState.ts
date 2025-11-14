@@ -19,6 +19,7 @@ export interface UnitRecord {
   notes?: string;
   kitchen_size?: string; // Kitchen size from CSV (Full, Compact, Kitchenette, None)
   unit_type?: string;   // Unit type from CSV (Suite, Event Space, Other, Parking, etc.)
+  private_offices?: number;
 }
 
 export interface ExploreState {

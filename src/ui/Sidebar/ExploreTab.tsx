@@ -339,7 +339,8 @@ export function ExploreTab() {
                               
                               const unitData = unitsData.get(unitKey);
                               if (unitData) {
-                                selectUnit(unitData.building, unitData.floor, unitData.unit_name);
+                                const normalizedUnit = unitData.unit_name.trim().toUpperCase();
+                                selectUnit('Tower Building', 'Main Floor', normalizedUnit);
                               }
                             }}
                             onMouseEnter={() => setHovered(unitKey)}

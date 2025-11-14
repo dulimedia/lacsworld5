@@ -7,10 +7,11 @@ import { UNIT_BOX_GLB_FILES } from '../data/unitBoxGlbFiles';
 import { UnitData, LoadedModel } from '../types';
 import { useFilterStore } from '../stores/useFilterStore';
 import FresnelMaterial from '../materials/FresnelMaterial';
-import PalmTreeInstancerSimple from './PalmTreeInstancerSimple';
 import { assetUrl } from '../lib/assets';
 import { PerfFlags } from '../perf/PerfFlags';
 import { logger } from '../utils/logger';
+
+const DRACO_DECODER_CDN = 'https://www.gstatic.com/draco/versioned/decoders/1.5.6/';
 
 class UnitWarehouseErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error?: any }> {
   constructor(props: { children: React.ReactNode }) {
@@ -97,8 +98,7 @@ const SingleModelGLB: React.FC<{
     return null;
   }
 
-  const useDraco = !PerfFlags.isIOS;
-  const { scene, materials } = useGLTF(modelUrl, useDraco);
+  const { scene, materials } = useGLTF(modelUrl, DRACO_DECODER_CDN);
 
   if (!scene) {
     logger.error('Scene not loaded for:', fileName);
@@ -249,18 +249,17 @@ const SingleModelGLB: React.FC<{
       const isUnit = isUnitFile(fileName);
       const isBridge = isBridgeFile(fileName);
 
-      const consolidatedFiles = new Set([
-        'environment/accessory concrete.glb',
-        'environment/hq sidewalk 2.glb',
-        'environment/road.glb',
-        'environment/stages.glb',
-        'environment/transparent buildings.glb',
-        'environment/transparents sidewalk.glb',
-        'environment/white wall.glb',
-        'environment/frame-raw-14.glb',
-        'environment/roof and walls.glb',
-        'environment/maryland street .glb',
-        'environment/beaudry ave.glb'
+      const consolidatedFiles = new Set([
+        'environment/accessory concrete.glb',
+        'environment/hq sidewalk 2.glb',
+        'environment/road.glb',
+        'environment/stages.glb',
+        'environment/transparent buildings.glb',
+        'environment/transparents sidewalk.glb',
+        'environment/white wall.glb',
+        'environment/palms.glb',
+        'environment/frame-raw-14.glb',
+        'environment/roof and walls.glb'
       ]);
 
       const isBoxFile = fileName.startsWith('boxes/');
@@ -543,21 +542,46 @@ const UnitWarehouseComponent: React.FC<UnitWarehouseProps> = ({
   const shadowsComputed = useRef(false);
 
   const allModels = useMemo(() => {
-    const isMobile = typeof window !== 'undefined' && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-    const useDraco = PerfFlags.useDracoCompressed;
-    const folder = useDraco ? 'environment/compressed' : 'environment';
+
+    const folder = 'environment';
+
     
+
     const models = [
-      `${folder}/frame${useDraco ? '' : '-raw-14'}.glb`,
-      `${folder}/others2.glb`,
+
+      `${folder}/accessory concrete.glb`,
+
+      `${folder}/hq sidewalk 2.glb`,
+
+      `${folder}/road.glb`,
+
+      `${folder}/transparent buildings.glb`,
+
+      `${folder}/transparents sidewalk.glb`,
+
+      `${folder}/white wall.glb`,
+
+      `${folder}/palms.glb`,
+
+      `${folder}/frame-raw-14.glb`,
+
       `${folder}/roof and walls.glb`,
+
       `${folder}/stages.glb`
+
     ];
+
     
-    console.log('🔧 Loading environment models:', models);
+
+    console.log('dY"? Loading environment models:', models);
+
     
+
     return models;
+
   }, []);
+
+
 
   const boxFiles = useMemo(() => {
     const files: string[] = [];
@@ -585,7 +609,7 @@ const UnitWarehouseComponent: React.FC<UnitWarehouseProps> = ({
       // Load environment models sequentially with 300ms delays (iOS needs breathing room)
       for (let i = 0; i < allModels.length; i++) {
         const path = allModels[i];
-        useGLTF.preload(assetUrl(`models/${path}`), false);
+        useGLTF.preload(assetUrl(`models/${path}`), DRACO_DECODER_CDN);
         if (PerfFlags.isIOS && i < allModels.length - 1) {
           await new Promise(resolve => setTimeout(resolve, 300));
         }
@@ -595,7 +619,7 @@ const UnitWarehouseComponent: React.FC<UnitWarehouseProps> = ({
       if (!PerfFlags.isMobile) {
         for (let i = 0; i < Math.min(boxFiles.length, 20); i++) {
           const path = boxFiles[i];
-          useGLTF.preload(assetUrl(`models/${path}`), false);
+          useGLTF.preload(assetUrl(`models/${path}`), DRACO_DECODER_CDN);
           await new Promise(resolve => setTimeout(resolve, 200));
         }
       }
@@ -927,9 +951,6 @@ const UnitWarehouseComponent: React.FC<UnitWarehouseProps> = ({
       {loadedModels.filter(m => !m.name.endsWith('.fbx')).map((model) => (
         <primitive key={model.name} object={model.object} />
       ))}
-      
-      {/* Palm Trees - Disabled on mobile due to shader complexity */}
-      {!PerfFlags.isMobile && <PalmTreeInstancerSimple visible={true} />}
     </group>
   );
 };

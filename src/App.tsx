@@ -9,7 +9,6 @@ import { RotateCcw, RotateCw, ZoomIn, ZoomOut, Home } from 'lucide-react';
 import { assetUrl } from './lib/assets';
 import { UnitWarehouse } from './components/UnitWarehouse';
 import { SingleEnvironmentMesh } from './components/SingleEnvironmentMesh';
-import PalmTreeInstancerSimple from './components/PalmTreeInstancerSimple';
 import UnitDetailPopup from './components/UnitDetailPopup';
 import { ExploreUnitsPanel } from './ui/ExploreUnitsPanel';
 import Sidebar from './ui/Sidebar/Sidebar';
@@ -385,6 +384,7 @@ function App() {
   }, []);
   const { drawerOpen, setDrawerOpen, selectedUnitKey, getUnitData, unitDetailsOpen, setUnitDetailsOpen, show3DPopup, setShow3DPopup, hoveredUnitKey } = useExploreState();
   const { setCameraControlsRef } = useGLBState();
+  const { floorPlanExpanded, setFloorPlanExpanded } = useSidebarState();
   
   // Global hover preview state
   const [globalHoverPreview, setGlobalHoverPreview] = useState<{
@@ -422,6 +422,7 @@ function App() {
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [showSingleUnitRequest, setShowSingleUnitRequest] = useState(false);
   const [renderTier, setRenderTier] = useState<Tier>(PerfFlags.tier === 'mobileLow' ? 'mobile-low' : 'desktop-high');
+  const sunPosition = useMemo(() => [165, 188, -40] as [number, number, number], []);
   const debugState = {
     tier: renderTier,
     ao: true,
@@ -679,8 +680,13 @@ function App() {
     }
   }, [drawerOpen]);
 
+  useEffect(() => {
+    if (!drawerOpen && floorPlanExpanded) {
+      setFloorPlanExpanded(false);
+    }
+  }, [drawerOpen, floorPlanExpanded, setFloorPlanExpanded]);
+
   // Handle smooth transitions when sidebar width changes (floorplan expand/collapse)
-  const { floorPlanExpanded } = useSidebarState();
   useEffect(() => {
     console.log('🔄 Floorplan expanded state changed:', floorPlanExpanded);
     
@@ -792,7 +798,8 @@ function App() {
           floorplan_url: unitData.floorplan || unitData.floorPlanUrl || unitData.floorplan_url,
           recipients: unitData.email_recipients ? [unitData.email_recipients] : ['owner@lacenter.com'], // Use CSV email or default
           kitchen_size: unitData.kitchen_size,
-          unit_type: unitData.unit_type || 'Suite' // Copy unit type from CSV data
+          unit_type: unitData.unit_type || 'Suite', // Copy unit type from CSV data
+          private_offices: unitData.private_offices
         };
         
         // Store with the primary key
@@ -1166,8 +1173,11 @@ function App() {
               {/* Lighting System - iOS gets simple lighting, desktop gets full shadows */}
               {!PerfFlags.isIOS && tier !== 'mobile-low' && (
                 <Lighting 
-                  shadowBias={debugState.shadowBias}
-                  shadowNormalBias={debugState.shadowNormalBias}
+                  sunPosition={sunPosition}
+                  shadowBias={-0.006}
+                  shadowNormalBias={0.35}
+                  shadowMaxExtent={210}
+                  shadowMargin={6}
                 />
               )}
               
@@ -1190,9 +1200,6 @@ function App() {
 
               {/* 3D Scene - Testing Single Environment Mesh */}
               <SingleEnvironmentMesh tier={renderTier} />
-
-              {/* Palm Trees */}
-              <PalmTreeInstancerSimple visible={true} />
 
               {/* GLB Manager for unit highlighting and interaction */}
               <GLBManager />

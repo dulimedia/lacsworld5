@@ -18,6 +18,7 @@ export interface UnitData {
   unit_type: string; // Suite, Stage, etc.
   kitchen_size?: string; // Kitchen size
   height?: string; // Max height for stages and other units
+  private_offices?: number; // Number of individual closed-door offices
 }
 
 export interface LoadedModel {

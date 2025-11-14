@@ -14,7 +14,13 @@ export default function Sidebar() {
   const { clearSelection, cameraControlsRef } = useGLBState();
 
   const collapsed = !drawerOpen;
-  const setCollapsed = (value: boolean) => setDrawerOpen(!value);
+  const setCollapsed = (value: boolean) => {
+    setDrawerOpen(!value);
+
+    if (value && floorPlanExpanded) {
+      setFloorPlanExpanded(false);
+    }
+  };
 
   const handleBackToExplore = () => {
     // Clear GLB selection (dehighlight box)
@@ -33,7 +39,7 @@ export default function Sidebar() {
   return (
     <>
       <button
-        className={cn('sidebar-toggle', collapsed && 'collapsed')}
+        className={cn('sidebar-toggle', collapsed && 'collapsed', floorPlanExpanded && 'floorplan-expanded')}
         aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         onClick={() => setCollapsed(!collapsed)}
       >
@@ -51,7 +57,7 @@ export default function Sidebar() {
       </button>
 
       <aside
-        className={cn('sidebar', collapsed && 'is-collapsed')}
+        className={cn('sidebar', collapsed && 'is-collapsed', floorPlanExpanded && 'floorplan-expanded')}
         role="complementary"
         aria-label="Suite Controls"
         aria-expanded={!collapsed}

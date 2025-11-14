@@ -1,5 +1,5 @@
 /** Spec reference:
- * See ./docs/AGENT_SPEC.md (§10 Acceptance) and ./docs/INTERACTION_CONTRACT.md (§3-4).
+ * See ./docs/AGENT_SPEC.md (Ã¢â€Â¬Ã‚Âº10 Acceptance) and ./docs/INTERACTION_CONTRACT.md (Ã¢â€Â¬Ã‚Âº3-4).
  * Do not change ids/schema without updating docs.
  */
 import React, { useState, useRef } from 'react';
@@ -236,6 +236,22 @@ export const UnitDetailsPopup: React.FC<UnitDetailsPopupProps> = ({
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-700">Lease Term</span>
                     <span className="text-sm text-gray-900">{displayUnit.lease_term}</span>
+                  </div>
+                )}
+
+                {(displayUnit.floor || displayUnit.private_offices !== undefined) && (
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="text-sm font-medium text-gray-700">Floor</div>
+                      <div className="text-sm text-gray-900">{displayUnit.floor || 'N/A'}</div>
+                    </div>
+                    <div className="text-xs font-semibold text-gray-700 bg-gray-100 px-3 py-1.5 rounded-full whitespace-nowrap">
+                      {displayUnit.private_offices === undefined || displayUnit.private_offices === null
+                        ? 'Private Offices: N/A'
+                        : displayUnit.private_offices === 0
+                          ? 'Open Floor Plan'
+                          : `${displayUnit.private_offices} ${displayUnit.private_offices === 1 ? 'Office' : 'Offices'}`}
+                    </div>
                   </div>
                 )}
 
