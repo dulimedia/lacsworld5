@@ -26,11 +26,16 @@ export function SingleEnvironmentMesh({ tier }: SingleEnvironmentMeshProps) {
   const { gl } = useThree();
   
   const isMobile = (tier === 'mobile-low');
+  const isSafariIOS = PerfFlags.isSafariIOS;
 
-  console.log('🌍 SingleEnvironmentMesh - Tier:', tier, 'isMobile:', isMobile);
+  console.log('🌍 SingleEnvironmentMesh - Tier:', tier, 'isMobile:', isMobile, 'isSafariIOS:', isSafariIOS);
 
   if (isMobile) {
-    console.log('📱 MOBILE PATH: Loading lightweight environment (MobileEnvironment)');
+    if (isSafariIOS) {
+      console.log('🍎 SAFARI iOS PATH: Loading ultra-lightweight environment (7 models, ~2MB)');
+      return <SafariMobileEnvironment />;
+    }
+    console.log('📱 MOBILE PATH: Loading full mobile environment (10 models, ~11.7MB)');
     return <MobileEnvironment />;
   }
   console.log('🖥️ DESKTOP PATH: Loading full environment (10 models, 11.5MB)');
@@ -738,6 +743,92 @@ function MobileEnvironment() {
       {palms.scene && <primitive object={palms.scene} />}
       {stages.scene && <primitive object={stages.scene} />}
       {roof.scene && <primitive object={roof.scene} />}
+    </>
+  );
+}
+
+function SafariMobileEnvironment() {
+  console.log('🍎 SafariMobileEnvironment: Loading ultra-lightweight (7 models, ~2MB)');
+  
+  const road = useDracoGLTF(assetUrl('models/environment/road.glb'));
+  const hqSidewalk = useDracoGLTF(assetUrl('models/environment/hq sidewalk 2.glb'));
+  const whiteWall = useDracoGLTF(assetUrl('models/environment/white wall.glb'));
+  const transparentSidewalk = useDracoGLTF(assetUrl('models/environment/transparents sidewalk.glb'));
+  const transparentBuildings = useDracoGLTF(assetUrl('models/environment/transparent buildings.glb'));
+  const accessory = useDracoGLTF(assetUrl('models/environment/accessory concrete.glb'));
+  const frame = useDracoGLTF(assetUrl('models/environment/frame-raw-14.glb'));
+
+  const optimizeModel = (scene: THREE.Object3D) => {
+    if (!scene) return;
+    
+    makeFacesBehave(scene, true);
+
+    scene.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh;
+        mesh.castShadow = false;
+        mesh.receiveShadow = false;
+        
+        if (mesh.material) {
+          const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+          materials.forEach((mat: any) => {
+            if (mat.normalMap) {
+              mat.normalMap.dispose();
+              mat.normalMap = null;
+            }
+            if (mat.roughnessMap) {
+              mat.roughnessMap.dispose();
+              mat.roughnessMap = null;
+            }
+            if (mat.metalnessMap) {
+              mat.metalnessMap.dispose();
+              mat.metalnessMap = null;
+            }
+            mat.envMapIntensity = 0.8;
+            mat.needsUpdate = true;
+          });
+        }
+      }
+    });
+  };
+
+  useEffect(() => {
+    if (road.scene) optimizeModel(road.scene);
+  }, [road.scene]);
+
+  useEffect(() => {
+    if (hqSidewalk.scene) optimizeModel(hqSidewalk.scene);
+  }, [hqSidewalk.scene]);
+
+  useEffect(() => {
+    if (whiteWall.scene) optimizeModel(whiteWall.scene);
+  }, [whiteWall.scene]);
+
+  useEffect(() => {
+    if (frame.scene) optimizeModel(frame.scene);
+  }, [frame.scene]);
+
+  useEffect(() => {
+    if (transparentSidewalk.scene) optimizeModel(transparentSidewalk.scene);
+  }, [transparentSidewalk.scene]);
+
+  useEffect(() => {
+    if (transparentBuildings.scene) optimizeModel(transparentBuildings.scene);
+  }, [transparentBuildings.scene]);
+
+  useEffect(() => {
+    if (accessory.scene) optimizeModel(accessory.scene);
+  }, [accessory.scene]);
+
+  return (
+    <>
+      {road.scene && <primitive object={road.scene} />}
+      {hqSidewalk.scene && <primitive object={hqSidewalk.scene} />}
+      {whiteWall.scene && <primitive object={whiteWall.scene} />}
+      {transparentSidewalk.scene && <primitive object={transparentSidewalk.scene} />}
+      {transparentBuildings.scene && <primitive object={transparentBuildings.scene} />}
+      {accessory.scene && <primitive object={accessory.scene} />}
+      {frame.scene && <primitive object={frame.scene} />}
     </>
   );
 }

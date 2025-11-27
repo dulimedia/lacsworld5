@@ -7,6 +7,8 @@ export const PerfFlags = (() => {
   const userAgent = navigator.userAgent;
   const isMobileUA = /Mobi|Android|iPhone|iPad|iPod/i.test(userAgent);
   const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
+  const isSafari = /Safari/.test(userAgent) && !/Chrome|CriOS|FxiOS/.test(userAgent);
+  const isSafariIOS = isIOS && isSafari;
   const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
   const isNarrowViewport = window.innerWidth < 768;
   const hasLowMemory = (navigator as any).deviceMemory ? (navigator as any).deviceMemory <= 4 : false;
@@ -17,6 +19,8 @@ export const PerfFlags = (() => {
   
   MobileDiagnostics.log('perf', 'PerfFlags initialized', {
     isIOS,
+    isSafari,
+    isSafariIOS,
     isMobile,
     tier,
     userAgent: userAgent.substring(0, 80),
@@ -38,6 +42,8 @@ export const PerfFlags = (() => {
     isMobile,
     isMobileUA,
     isIOS,
+    isSafari,
+    isSafariIOS,
     isTouch: isTouchDevice,
     
     DPR_MAX: isLow ? 1.25 : isBalanced ? 1.3 : 2.0,
