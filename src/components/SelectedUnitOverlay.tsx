@@ -220,105 +220,68 @@ export const SelectedUnitOverlay: React.FC = () => {
     }
   });
 
-  // Update overlay when selection changes
+  // STABLE OVERLAY: Update visibility without creating/destroying meshes
   useEffect(() => {
     if (!overlayGroupRef.current) return;
     
-    // Clear existing overlay meshes
+    // Instead of destroying/creating, just update visibility of existing overlays
     overlayMeshesRef.current.forEach(mesh => {
-      overlayGroupRef.current?.remove(mesh);
-      mesh.geometry?.dispose();
-    });
-    overlayMeshesRef.current = [];
-
-    // NO DELAY - prevent flash by creating overlays immediately
-    const timeoutId = setTimeout(() => {
-      const unitsToHighlight = [];
-      const highlightedKeys = new Set<string>();
-
-      // SIMULTANEOUS HIGHLIGHTING: Show both hover AND selection at the same time
+      const unitKey = mesh.userData.unitKey;
       
-      // 1. Add hovered floor (highest priority for hover)
-      if (hoveredFloor) {
-        const floorUnits = getGLBsByFloor(hoveredFloor.building, hoveredFloor.floor);
-        floorUnits.forEach(unit => {
-          if (unit.object && unit.isLoaded && !highlightedKeys.has(unit.key)) {
-            unitsToHighlight.push(unit);
-            highlightedKeys.add(unit.key);
-          }
-        });
-      }
+      // Determine if this overlay should be visible
+      let shouldBeVisible = false;
       
-      // 2. Add hovered unit - KEEP ORIGINAL VISIBLE
-      if (hoveredUnit) {
-        const hoveredUnitGLB = glbNodes.get(hoveredUnit);
-        if (hoveredUnitGLB?.object && hoveredUnitGLB.isLoaded && !highlightedKeys.has(hoveredUnit)) {
-          // DO NOT HIDE: hoveredUnitGLB.object.visible = false;
-          unitsToHighlight.push(hoveredUnitGLB);
-          highlightedKeys.add(hoveredUnit);
-        }
-      }
-      
-      // 3. Add selected unit (if different from hovered) - KEEP ORIGINAL VISIBLE
+      // Check if it matches current selection
       if (selectedUnit && selectedBuilding && selectedFloor !== null && selectedFloor !== undefined) {
         const unitGLB = getGLBByUnit(selectedBuilding, selectedFloor, selectedUnit);
-        if (unitGLB?.object && unitGLB.isLoaded && !highlightedKeys.has(unitGLB.key)) {
-          // DO NOT HIDE: unitGLB.object.visible = false;
-          unitsToHighlight.push(unitGLB);
-          highlightedKeys.add(unitGLB.key);
-        }
-      } else if (selectedFloor !== null && selectedFloor !== undefined && selectedBuilding) {
-        // 4. Add selected floor units (if no specific unit selected)
-        const floorUnits = getGLBsByFloor(selectedBuilding, selectedFloor);
-        floorUnits.forEach(unit => {
-          if (unit.object && unit.isLoaded && !highlightedKeys.has(unit.key)) {
-            unitsToHighlight.push(unit);
-            highlightedKeys.add(unit.key);
-          }
-        });
-      } else if (selectedBuilding) {
-        // 5. Add selected building units (if no floor/unit selected)
-        const buildingUnits = getGLBsByBuilding(selectedBuilding);
-        buildingUnits.forEach(unit => {
-          if (unit.object && unit.isLoaded && !highlightedKeys.has(unit.key)) {
-            unitsToHighlight.push(unit);
-            highlightedKeys.add(unit.key);
-          }
-        });
+        shouldBeVisible = shouldBeVisible || (unitGLB?.key === unitKey);
       }
+      
+      // Check if it matches current hover
+      if (hoveredUnit) {
+        const hoveredUnitGLB = glbNodes.get(hoveredUnit);
+        shouldBeVisible = shouldBeVisible || (hoveredUnitGLB?.key === unitKey);
+      }
+      
+      // Update mesh visibility and material opacity
+      mesh.visible = shouldBeVisible;
+      
+      if (mesh.material && 'uniforms' in mesh.material && mesh.material.uniforms.uOpacity) {
+        mesh.material.uniforms.uOpacity.value = shouldBeVisible ? 
+          GHOST_MATERIAL_CONFIG.opacity * (mesh.userData.occlusionFactor || 1.0) : 0;
+      }
+    });
+  }, [hoveredUnit, selectedUnit, selectedBuilding, selectedFloor, getGLBByUnit, glbNodes]);
 
-      // Create overlays for all selected units
-      if (unitsToHighlight.length > 0) {
+  // Initialize overlay meshes once for all units
+  useEffect(() => {
+    if (!overlayGroupRef.current || overlayMeshesRef.current.length > 0) return;
+    
+    // Create overlay meshes for ALL units once, control visibility via state
+    const allNodes = Array.from(glbNodes.values());
+    
+    allNodes.forEach(unitGLB => {
+      if (unitGLB.object && unitGLB.isLoaded) {
         try {
-          unitsToHighlight.forEach(unitGLB => {
-            // KEEP ORIGINALS VISIBLE - overlay on top with depthTest: false
-            // DO NOT HIDE: unitGLB.object.visible = false;
-            
-            const overlayMeshes = createOverlayMeshes(unitGLB.object!);
-            
-            overlayMeshes.forEach(mesh => {
-              overlayGroupRef.current?.add(mesh);
-            });
-            
-            overlayMeshesRef.current.push(...overlayMeshes);
+          const overlayMeshes = createOverlayMeshes(unitGLB.object);
+          
+          overlayMeshes.forEach(mesh => {
+            // Store unit key for visibility updates
+            mesh.userData.unitKey = unitGLB.key;
+            mesh.visible = false; // Start hidden
+            overlayGroupRef.current?.add(mesh);
           });
           
-          const selectionType = selectedUnit ? 'unit' : selectedFloor ? 'floor' : 'building';
-          const selectionName = selectedUnit || selectedFloor || selectedBuilding;
-          
-          // Log occlusion factors for debugging
-          const occlusionFactors = overlayMeshesRef.current.map(mesh => mesh.userData.occlusionFactor).filter(f => f !== undefined);
-          const avgOcclusion = occlusionFactors.length > 0 ? occlusionFactors.reduce((a, b) => a + b, 0) / occlusionFactors.length : 1.0;
-          
+          overlayMeshesRef.current.push(...overlayMeshes);
         } catch (error) {
-          console.error('Error creating overlay:', error);
+          console.error(`Error creating overlay for ${unitGLB.key}:`, error);
         }
       }
-    }, 0); // NO DELAY - immediate overlay to prevent flash
+    });
     
-    return () => clearTimeout(timeoutId);
-  }, [hoveredFloor, hoveredUnit, selectedUnit, selectedBuilding, selectedFloor, getGLBByUnit, getGLBsByBuilding, getGLBsByFloor, glbNodes, fresnelMaterial, camera]);
-
+    console.log(`✅ Initialized ${overlayMeshesRef.current.length} stable overlay meshes`);
+  }, [glbNodes, fresnelMaterial]);
+  
   // Cleanup on unmount
   useEffect(() => {
     return () => {

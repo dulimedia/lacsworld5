@@ -7,9 +7,32 @@ import { logger } from '../utils/logger';
 // Fallback image when floorplan is not available
 export const FALLBACK_FLOORPLAN = import.meta.env.BASE_URL + 'floorplans/no-floorplan-available.svg';
 
-// Cache for preloaded images
+// Cache for preloaded images with LRU eviction
 const imageCache = new Map<string, HTMLImageElement>();
 const loadingPromises = new Map<string, Promise<HTMLImageElement>>();
+const cacheAccessOrder = new Set<string>();
+
+// Memory management: Limit cache to prevent 400+ images in GPU memory
+const MAX_CACHED_IMAGES = 10; // Only keep 10 floorplans in memory at once
+
+function evictLRUImages() {
+  if (imageCache.size <= MAX_CACHED_IMAGES) return;
+  
+  // Remove oldest images until we're under the limit
+  const accessOrderArray = Array.from(cacheAccessOrder);
+  const toEvict = accessOrderArray.slice(0, imageCache.size - MAX_CACHED_IMAGES);
+  
+  toEvict.forEach(url => {
+    const img = imageCache.get(url);
+    if (img) {
+      // Clean up image resources
+      img.src = '';
+      imageCache.delete(url);
+      cacheAccessOrder.delete(url);
+      console.log(`🗑️ Evicted floorplan from cache: ${url.split('/').pop()}`);
+    }
+  });
+}
 
 /**
  * Generate a stable key for floorplan based on building, floor, and unit IDs
@@ -27,8 +50,10 @@ export function generateFloorplanKey(
  * Preload an image and cache it
  */
 export async function preloadImage(url: string): Promise<HTMLImageElement> {
-  // Return cached image if available
+  // Update access order for LRU if already cached
   if (imageCache.has(url)) {
+    cacheAccessOrder.delete(url);
+    cacheAccessOrder.add(url);
     return imageCache.get(url)!;
   }
 
@@ -42,8 +67,17 @@ export async function preloadImage(url: string): Promise<HTMLImageElement> {
     const img = new Image();
     
     img.onload = () => {
+      // Add to cache and update access order
       imageCache.set(url, img);
+      cacheAccessOrder.delete(url);
+      cacheAccessOrder.add(url);
+      
+      // Evict old images to stay under memory limit
+      evictLRUImages();
+      
       loadingPromises.delete(url);
+      
+      console.log(`✅ Cached floorplan (${imageCache.size}/${MAX_CACHED_IMAGES}): ${url.split('/').pop()}`);
       resolve(img);
     };
     

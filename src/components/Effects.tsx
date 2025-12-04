@@ -32,12 +32,13 @@ export function Effects({ tier, enabled = true }: EffectsProps) {
   if (isMobileHigh) {
     console.log('📱 Mobile-high: Selective post-processing enabled (Bloom + ToneMapping)');
     return (
-      <EffectComposer multisampling={0} disableNormalPass={true}>
+      <EffectComposer multisampling={0} disableNormalPass={true} resolutionScale={0.5}>
         <Bloom
           intensity={0.5}
           luminanceThreshold={0.8}
           luminanceSmoothing={0.9}
           mipmapBlur
+          height={Math.floor(window.innerHeight / 2)}
         />
         <ToneMapping mode={THREE.ACESFilmicToneMapping} exposure={tmPreset.exposure} />
       </EffectComposer>
@@ -47,12 +48,13 @@ export function Effects({ tier, enabled = true }: EffectsProps) {
   console.log('🖥️ Desktop: Full post-processing effects enabled');
 
   return (
-    <EffectComposer multisampling={0} disableNormalPass={true}>
+    <EffectComposer multisampling={0} disableNormalPass={true} resolutionScale={0.75}>
       <Bloom
         intensity={0.8}
         luminanceThreshold={0.7}
         luminanceSmoothing={0.9}
         mipmapBlur
+        height={Math.floor(window.innerHeight * 0.75)}
       />
       <ToneMapping mode={THREE.ACESFilmicToneMapping} exposure={tmPreset.exposure} />
     </EffectComposer>

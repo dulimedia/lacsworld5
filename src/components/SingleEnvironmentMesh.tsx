@@ -628,7 +628,7 @@ export function SingleEnvironmentMesh({ tier }: SingleEnvironmentMeshProps) {
   return (
     <>
       {otherScenes.map((scene, index) => (
-        <primitive key={`environment-other-${index}`} object={scene} />
+        <primitive key={scene.uuid} object={scene} />
       ))}
       {frame.scene && <primitive object={frame.scene} />}
       {roof.scene && <primitive object={roof.scene} />}

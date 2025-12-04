@@ -18,6 +18,7 @@ import { GLBManager } from './components/GLBManager';
 import { FrustumCuller } from './components/FrustumCuller';
 import { UnitDetailsPopup } from './components/UnitDetailsPopup';
 import { SelectedUnitOverlay } from './components/SelectedUnitOverlay';
+import { UnitGlowHighlight } from './components/UnitGlowHighlight';
 import { CanvasClickHandler } from './components/CanvasClickHandler';
 import { CanvasResizeHandler } from './components/CanvasResizeHandler';
 import UnitRequestForm from './components/UnitRequestForm';
@@ -1351,8 +1352,8 @@ function App() {
               {/* Frustum Culling for performance - only render visible objects */}
               <FrustumCuller />
 
-              {/* Selected Unit Highlight Overlay - simplified for low power devices */}
-              {!deviceCapabilities.isLowPowerDevice && <SelectedUnitOverlay />}
+              {/* Unit Glow Highlight - material-based, no mesh creation/destruction */}
+              <UnitGlowHighlight />
 
               {/* Canvas Click Handler for clearing selection */}
               <CanvasClickHandler />
@@ -1377,8 +1378,8 @@ function App() {
               )}
               {mobileSettings.postProcessing && console.log('⚠️ Post-processing DISABLED (mobile safe-mode)')}
 
-              {/* GPU Path Tracer - mutually exclusive with post-processing */}
-              {effectsReady && debugState.pathtracer && (
+              {/* GPU Path Tracer - DISABLED for production to prevent Suspense fallbacks */}
+              {false && effectsReady && debugState.pathtracer && (
                 <Suspense fallback={null}>
                   <PathTracer 
                     enabled={debugState.pathtracer} 
