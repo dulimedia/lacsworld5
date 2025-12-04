@@ -289,6 +289,13 @@ export const useGLBState = create<GLBState>((set, get) => ({
     console.log('Unit selection parameters:', { building, floor, unit, skipCameraAnimation });
     console.log('⏰ Timestamp:', new Date().toISOString());
     console.log('🎯 This should NOT trigger loading screen');
+    
+    // Trigger flash prevention for first unit selection
+    if (building && unit) {
+      console.log('📡 Broadcasting unit selection event for flash prevention');
+      window.dispatchEvent(new CustomEvent('unit-selection-flash-prevention'));
+    }
+    
     console.groupEnd();
     
     // Reset all GLBs to invisible first (like LACSWORLD2)

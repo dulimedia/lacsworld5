@@ -102,6 +102,7 @@ function configureRenderer(renderer: THREE.WebGLRenderer, canvas: HTMLCanvasElem
   
   renderer.useLegacyLights = false;
   renderer.setClearColor(0x000000, 0); // Transparent - back to original working state
+  console.log('🎨 Renderer clear color set to transparent black');
   
   try {
     const testScene = new THREE.Scene();
@@ -136,6 +137,7 @@ function configureRenderer(renderer: THREE.WebGLRenderer, canvas: HTMLCanvasElem
     const w = Math.floor(window.innerWidth);
     const h = Math.floor(window.innerHeight);
     renderer.setSize(w, h, false);
+    console.log('🖼️ Canvas resized to:', w, 'x', h);
   }
   window.addEventListener('resize', () => requestAnimationFrame(resize), { passive: true });
   resize();
@@ -196,9 +198,11 @@ async function createWebGPURenderer(canvas: HTMLCanvasElement): Promise<any | nu
     renderer.toneMapping = THREE.NoToneMapping;
     renderer.toneMappingExposure = 1.0;
     renderer.setClearColor(0x000000, 0); // Transparent - back to original working state
+  console.log('🎨 Renderer clear color set to transparent black');
     
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(window.innerWidth, window.innerHeight);
+    console.log('🖼️ Initial canvas size set to:', window.innerWidth, 'x', window.innerHeight);
     
     const smokeOk = await smokeTestWebGPU(renderer);
     
