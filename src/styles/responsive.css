@@ -18,11 +18,11 @@
   }
 }
 
-/* Phone / small tablets */
+/* Phone / small tablets - Vertical split layout */
 @media (max-width: 768px) {
   :root {
-    --sidebar-w: clamp(280px, 42vw, 42vw);
-    --sidebar-pad: 10px;
+    --sidebar-w: 100vw; /* Full width on mobile */
+    --sidebar-pad: 16px;
     --fab-gap: 8px;
   }
 
@@ -30,23 +30,25 @@
     display: none !important;
   }
   
-  .sidebar-toggle {
-    left: var(--sidebar-w);
-    transform: translateX(0);
-  }
-  
-  .sidebar.is-collapsed ~ .sidebar-toggle {
-    transform: translateX(calc(-1 * var(--sidebar-w) + 18px));
-  }
-  
   .sidebar {
+    position: fixed !important;
+    top: 50vh !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: 50vh !important;
     background: rgba(255, 255, 255, 0.98);
     backdrop-filter: blur(24px);
+    box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.12);
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+    border-right: none;
+    padding-bottom: calc(env(safe-area-inset-bottom) + 24px) !important;
   }
   
 }
 
-/* Canvas positioning - Removed (now handled by index.css with CSS custom properties) */
+/* Canvas positioning handled in index.css */
 
 .scene-canvas {
   width: 100%;
@@ -54,7 +56,7 @@
   display: block;
 }
 
-/* Sidebar: ALWAYS left-docked; same component, responsive width */
+/* Sidebar: STATIC left-docked layout - NO COLLAPSE */
 .sidebar {
   position: fixed;
   top: 0;
@@ -68,51 +70,13 @@
   background: rgba(255, 255, 255, 0.75);
   backdrop-filter: blur(12px);
   box-shadow: 12px 0 30px rgba(0, 0, 0, 0.12);
-  transform: translateX(0);
-  transition: transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
   border-right: 1px solid rgba(0, 0, 0, 0.05);
+  /* REMOVED: All transforms, transitions, and collapse classes */
 }
 
-.sidebar.is-collapsed {
-  transform: translateX(calc(-100% + 18px));
-}
+/* REMOVED: All sidebar toggle CSS - no longer needed for static layout */
 
-/* Collapse/Expand button – vertical tab on sidebar edge */
-.sidebar-toggle {
-  position: fixed;
-  left: var(--sidebar-w);
-  top: 120px;
-  z-index: var(--ui-z);
-  background: white;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  border-radius: 0 8px 8px 0;
-  padding: 16px 8px;
-  box-shadow: 4px 0 12px rgba(0, 0, 0, 0.1);
-  transition: left 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  cursor: pointer;
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
-}
-
-.sidebar-toggle:hover {
-  background: rgba(249, 250, 251, 1);
-}
-
-/* When sidebar collapsed: button attaches to right edge of collapsed sidebar */
-/* Note: Can't use sibling selector since button renders before sidebar in DOM */
-.sidebar-toggle.collapsed {
-  left: var(--sidebar-w-collapsed);
-}
-
-/* FAB cluster – centered horizontally in available space (right of sidebar) */
+/* FAB cluster – centered in canvas area (right of static sidebar) */
 .fab-cluster {
   position: fixed;
   bottom: calc(env(safe-area-inset-bottom) + 12px);
@@ -127,10 +91,6 @@
 
 .fab-cluster > * {
   pointer-events: auto;
-}
-
-.sidebar.is-collapsed ~ .fab-cluster {
-  left: 0;
 }
 
 /* Floorplan modal image viewer (mobile + desktop) */

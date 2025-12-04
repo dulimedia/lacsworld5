@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useGLBState } from '../store/glbState';
 import * as THREE from 'three';
 import { createGlowMaterial } from '../materials/glowMaterial';
@@ -69,42 +69,69 @@ export const UnitGlowHighlightFixed = () => {
     return glowMeshes;
   };
 
-  // Clear existing glow meshes with proper material disposal
+  // ENHANCED: Clear ALL glow meshes including orphaned ones
   const clearGlowMeshes = () => {
+    console.log('🧹 ENHANCED GLOW CLEANUP START:', {
+      currentMeshCount: currentGlowMeshesRef.current.length,
+      processing: isProcessingRef.current,
+      hasGroup: !!glowGroupRef.current,
+      timestamp: Date.now()
+    });
+    
     if (glowGroupRef.current && !isProcessingRef.current) {
-      isProcessingRef.current = true; // Prevent re-entry during cleanup
+      isProcessingRef.current = true;
+      console.log('🔒 GLOW CLEANUP LOCKED - starting enhanced disposal...');
       
-      currentGlowMeshesRef.current.forEach(mesh => {
-        glowGroupRef.current?.remove(mesh);
-        // Dispose cloned geometry
-        mesh.geometry?.dispose();
-        // Dispose cloned material to prevent corruption
-        if (mesh.material && Array.isArray(mesh.material)) {
-          mesh.material.forEach(mat => mat.dispose());
-        } else if (mesh.material) {
-          mesh.material.dispose();
-        }
+      try {
+        // CRITICAL FIX: Clear ALL children from glow group, not just tracked ones
+        const allGlowChildren = [...glowGroupRef.current.children];
+        console.log(`🗑️ Found ${allGlowChildren.length} total glow meshes in group`);
+        
+        allGlowChildren.forEach((child, index) => {
+          try {
+            if (child instanceof THREE.Mesh) {
+              console.log(`🗑️ Disposing glow mesh ${index + 1}/${allGlowChildren.length}`);
+              glowGroupRef.current?.remove(child);
+              
+              // Dispose geometry
+              if (child.geometry) {
+                child.geometry.dispose();
+              }
+              
+              // Dispose material
+              if (child.material && Array.isArray(child.material)) {
+                child.material.forEach(mat => mat.dispose());
+              } else if (child.material) {
+                child.material.dispose();
+              }
+            }
+          } catch (meshError) {
+            console.error(`❌ ERROR disposing mesh ${index + 1}:`, meshError);
+          }
+        });
+        
+        // Clear the reference array
+        currentGlowMeshesRef.current = [];
+        console.log('✅ ENHANCED GLOW CLEANUP COMPLETE - ALL meshes disposed');
+      } catch (error) {
+        console.error('❌ CRITICAL ERROR during enhanced glow cleanup:', error);
+      } finally {
+        isProcessingRef.current = false;
+        console.log('🔓 GLOW CLEANUP UNLOCKED');
+      }
+    } else {
+      console.log('⚠️ GLOW CLEANUP SKIPPED:', {
+        reason: !glowGroupRef.current ? 'no group' : 'already processing'
       });
-      
-      currentGlowMeshesRef.current = [];
-      isProcessingRef.current = false;
     }
   };
 
-  // Update glow for selected unit ONLY
-  useEffect(() => {
-    if (!glowGroupRef.current || !glowMaterialRef.current || isProcessingRef.current) return;
-    
-    console.log('[SELECTIVE GLOW] selectedUnit =', selectedUnit, 'selectedBuilding =', selectedBuilding, 'selectedFloor =', selectedFloor);
-    
-    // RACE CONDITION PROTECTION: Prevent overlapping glow operations
-    if (isProcessingRef.current) {
-      console.log('[SELECTIVE GLOW] ⚡ Skipping glow update - processing in progress');
+  // Separate function for the actual glow update logic - MOVED BEFORE useEffect
+  const performGlowUpdate = useCallback(() => {
+    if (!glowGroupRef.current || !glowMaterialRef.current || isProcessingRef.current) {
+      console.log('[SELECTIVE GLOW] ⚠️ Cannot perform glow update - missing refs or processing');
       return;
     }
-    
-    // Clear any existing glow meshes first
-    clearGlowMeshes();
 
     // Create glow for selected unit only
     if (selectedUnit && selectedBuilding && selectedFloor !== null && selectedFloor !== undefined) {
@@ -152,6 +179,32 @@ export const UnitGlowHighlightFixed = () => {
       }
     }
   }, [selectedUnit, selectedBuilding, selectedFloor, hoveredUnit, getGLBByUnit, glbNodes]);
+
+  // Update glow for selected unit ONLY - MOVED AFTER function definition
+  useEffect(() => {
+    if (!glowGroupRef.current || !glowMaterialRef.current || isProcessingRef.current) return;
+    
+    console.log('[SELECTIVE GLOW] selectedUnit =', selectedUnit, 'selectedBuilding =', selectedBuilding, 'selectedFloor =', selectedFloor);
+    
+    // RACE CONDITION PROTECTION: Prevent overlapping glow operations
+    if (isProcessingRef.current) {
+      console.log('[SELECTIVE GLOW] ⚡ Skipping glow update - processing in progress');
+      return;
+    }
+    
+    // CRITICAL FIX: Defer glow mesh cleanup to next frame to prevent race conditions
+    console.log('[SELECTIVE GLOW] 🕐 Deferring glow cleanup to next frame...');
+    requestAnimationFrame(() => {
+      console.log('[SELECTIVE GLOW] 🕐 Executing deferred glow cleanup');
+      clearGlowMeshes();
+      
+      // Also defer the glow creation to ensure cleanup is complete
+      requestAnimationFrame(() => {
+        console.log('[SELECTIVE GLOW] 🕐 Executing deferred glow creation');
+        performGlowUpdate();
+      });
+    });
+  }, [selectedUnit, selectedBuilding, selectedFloor, hoveredUnit, performGlowUpdate]);
 
   // Cleanup on unmount
   useEffect(() => {

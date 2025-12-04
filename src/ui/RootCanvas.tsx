@@ -180,14 +180,27 @@ export function RootCanvas({ children, gl: glProp, onTierChange, ...canvasProps 
     
     canvas.addEventListener('webglcontextlost', (e: Event) => {
       e.preventDefault();
-      console.warn('🚨 WEBGL CONTEXT LOST', e);
+      console.error('🚨🚨🚨 WEBGL CONTEXT LOST - THIS IS THE CRASH! 🚨🚨🚨');
+      console.error('Context loss event:', e);
+      console.error('Canvas details:', {
+        width: canvas.width,
+        height: canvas.height,
+        clientWidth: canvas.clientWidth,
+        clientHeight: canvas.clientHeight,
+        style: canvas.style.cssText,
+        timestamp: Date.now()
+      });
+      console.error('Call stack at context loss:', new Error().stack);
       log.warn('webglcontextlost event');
       MobileDiagnostics.warn('root-canvas', 'webglcontextlost');
-      alert('3D view stopped due to device limits (WebGL context lost).');
+      
+      // Alert user about the crash
+      alert('WebGL context lost! This is likely the cause of the white screen crash.');
     }, false);
     
     canvas.addEventListener('webglcontextrestored', () => {
       console.warn('✅ WEBGL CONTEXT RESTORED');
+      console.log('Attempting to recover from context loss...');
       log.info('webglcontextrestored event');
       MobileDiagnostics.log('root-canvas', 'webglcontextrestored');
     }, false);

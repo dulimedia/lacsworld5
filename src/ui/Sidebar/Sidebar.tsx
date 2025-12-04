@@ -18,108 +18,55 @@ export default function Sidebar() {
     setDrawerOpen,
     setSelected: setExploreSelected,
     setHovered: setExploreHovered,
+    selectedUnitKey,
+    getUnitData,
   } = useExploreState();
   const { clearSelection, cameraControlsRef, resetCameraAnimation } = useGLBState();
   const { setSelectedUnit: setGlobalSelectedUnit, setHoveredUnit: setGlobalHoveredUnit } = useUnitStore();
   const asideRef = useRef<HTMLElement | null>(null);
   const isMobile = detectDevice().isMobile;
 
-  const collapsed = !drawerOpen;
-  const setCollapsed = (value: boolean) => {
-    setDrawerOpen(!value);
-
-    if (value && floorPlanExpanded) {
-      setFloorPlanExpanded(false);
-    }
-  };
+  const lastDetailUnitRef = useRef<string | null>(null);
 
   const handleBackToExplore = () => {
-    // Clear GLB selection (dehighlight box)
-    clearSelection();
-    
-    // Reset camera animation state to ensure clean state
-    resetCameraAnimation();
-    
-    // Reset camera to home position with smooth animation
-    if (cameraControlsRef?.current) {
-      // Enable smooth animation on both mobile and desktop
-      cameraControlsRef.current.reset(true); // true = smooth animation on all platforms
-    }
-
-    // Reset explore/hover state so selecting the same unit works again
+    // Clear selection state
     setExploreSelected(null);
     setExploreHovered(null);
     setGlobalSelectedUnit(null);
     setGlobalHoveredUnit(null);
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('unit-hover-clear'));
+    
+    // Reset camera to home position like home button
+    if (cameraControlsRef?.current) {
+      cameraControlsRef.current.reset(true); // smooth animation
     }
     
-    // Navigate back to explore view
+    // Clear GLB selection and reset camera animation state
+    clearSelection();
+    resetCameraAnimation();
+    
     setView('explore');
     setFloorPlanExpanded(false);
   };
 
-  // Responsive sidebar width based on view and device
-  const updateSidebarWidth = useCallback(() => {
-    const root = document.documentElement;
-    const mobile = window.innerWidth < 768;
-
-    // CRITICAL: Don't change --sidebar-w on mobile to prevent canvas resize and WebGL context loss
-    if (mobile) {
-      return; // Keep mobile sidebar width constant to prevent canvas resize
-    }
-
-    const exploreWidth = '360px';
-    const detailsWidth = '420px';
-
-    root.style.setProperty('--sidebar-w', view === 'details' ? detailsWidth : exploreWidth);
-  }, [view]);
-
-  useEffect(() => {
-    updateSidebarWidth();
-
-    const onResize = () => updateSidebarWidth();
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, [updateSidebarWidth]);
+  // Sidebar width is now static - no dynamic updates needed
 
   useEffect(() => {
     MobileDiagnostics.log('sidebar', 'state update', {
       tab,
       view,
-      collapsed,
       floorPlanExpanded,
     });
     MobileDiagnostics.layout('sidebar', asideRef.current);
-  }, [tab, view, collapsed, floorPlanExpanded]);
+  }, [tab, view, floorPlanExpanded]);
 
   return (
     <>
-      <button
-        className={cn('sidebar-toggle', collapsed && 'collapsed', floorPlanExpanded && 'floorplan-expanded')}
-        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        onClick={() => setCollapsed(!collapsed)}
-      >
-        {collapsed ? (
-          <>
-            <ChevronRight size={16} />
-            <span>Expand</span>
-          </>
-        ) : (
-          <>
-            <ChevronLeft size={16} />
-            <span>Collapse</span>
-          </>
-        )}
-      </button>
 
       <aside
         ref={asideRef}
-        className={cn('sidebar', collapsed && 'is-collapsed', floorPlanExpanded && 'floorplan-expanded')}
+        className={cn('sidebar', floorPlanExpanded && 'floorplan-expanded')}
         role="complementary"
         aria-label="Suite Controls"
-        aria-expanded={!collapsed}
       >
         <div className="flex-shrink-0 pb-3 border-b border-black/5">
           {view === 'details' ? (

@@ -59,6 +59,7 @@ import { RootCanvas } from './ui/RootCanvas';
 import type { Tier } from './lib/graphics/tier';
 import { ErrorLogDisplay } from './components/ErrorLogDisplay';
 import { PerformanceGovernorComponent } from './components/PerformanceGovernorComponent';
+import { WebGLRecovery } from './components/WebGLRecovery';
 import { log as debugLog, SAFE, Q } from './lib/debug';
 import { MobileDiagnostics } from './debug/mobileDiagnostics';
 
@@ -104,7 +105,7 @@ function AdaptivePixelRatio() {
   return null;
 }
 
-const CSV_URL = assetUrl('unit-data-with-offices.csv');
+const CSV_URL = 'https://docs.google.com/spreadsheets/d/1U6ocEjplhEsWpIZ6jdfBNoRCKinhh5f9F31nf7U51zc/export?format=csv';
 
 // Legacy HDRI Environment component - kept for fallback but not used by default
 const LegacyHDRIEnvironment = React.memo(() => {
@@ -351,7 +352,9 @@ const DetailsSidebar: React.FC<{
   if (!selectedUnit) return null;
 
   const data = unitData[selectedUnit];
-  const isAvailable = data?.availability?.toLowerCase().includes('available') || data?.availability?.toLowerCase() === 'true';
+  // Fix: Ensure availability is a string before calling toLowerCase
+  const availabilityStr = String(data?.availability || '').toLowerCase();
+  const isAvailable = availabilityStr.includes('available') || availabilityStr === 'true';
 
   return (
     <div className="fixed bottom-6 right-6 bg-white rounded-lg shadow-lg p-4 w-64 border-2 border-slate-600 z-50">
@@ -726,36 +729,20 @@ function App() {
     return () => clearTimeout(fallbackTimer);
   }, [deviceCapabilities, loadingPhase]);
 
-  // Handle WebGL context loss (common on mobile)
+  // Handle WebGL context loss (log only to avoid white overlay loops)
   useEffect(() => {
+    const canvas = document.querySelector('canvas');
+    if (!canvas) return;
+
     const handleContextLost = (event: Event) => {
       event.preventDefault();
-      console.error('🚨 WebGL context lost - attempting recovery');
-      logger.error('WebGL context lost - attempting recovery');
-      
-      setModelsLoading(true);
-      setLoadingPhase('initializing');
+      logger.warn('WebGL context lost (ignored)', event);
     };
 
-    const handleContextRestored = () => {
-      console.log('✅ WebGL context restored - reloading app');
-      logger.log('LOADING', '✅', 'WebGL context restored');
-      
-      setTimeout(() => {
-        window.location.reload();
-      }, 500);
+    canvas.addEventListener('webglcontextlost', handleContextLost);
+    return () => {
+      canvas.removeEventListener('webglcontextlost', handleContextLost);
     };
-
-    const canvas = document.querySelector('canvas');
-    if (canvas) {
-      canvas.addEventListener('webglcontextlost', handleContextLost);
-      canvas.addEventListener('webglcontextrestored', handleContextRestored);
-      
-      return () => {
-        canvas.removeEventListener('webglcontextlost', handleContextLost);
-        canvas.removeEventListener('webglcontextrestored', handleContextRestored);
-      };
-    }
   }, []);
   
   // DISABLED: Context health monitor was causing "Canvas has existing context" error
@@ -779,18 +766,13 @@ function App() {
 
   // Add class to body for CSS-based sidebar transitions
   useEffect(() => {
-    if (deviceCapabilities.isMobile) {
-      document.body.classList.add('sidebar-open');
-      return () => {
-        document.body.classList.remove('sidebar-open');
-      };
-    }
+    if (deviceCapabilities.isMobile) return;
 
-    if (drawerOpen) {
-      document.body.classList.add('sidebar-open');
-    } else {
-      document.body.classList.remove('sidebar-open');
-    }
+    document.body.classList.toggle('sidebar-desktop-open', drawerOpen);
+
+    return () => {
+      document.body.classList.remove('sidebar-desktop-open');
+    };
   }, [drawerOpen, deviceCapabilities.isMobile]);
 
   useEffect(() => {
@@ -1404,6 +1386,9 @@ function App() {
               {/* Performance Governor - mobile FPS enforcement */}
               <PerformanceGovernorComponent />
 
+              {/* WebGL Context Recovery */}
+              <WebGLRecovery />
+
               {/* Post-processing - Disabled on mobile per safe-mode preset */}
               {!mobileSettings.postProcessing && !SAFE && effectsReady && debugState.ao && !debugState.pathtracer && (
                 <AdaptiveEffects tier={tier} />
@@ -1469,18 +1454,13 @@ function App() {
         
         
 
-        {/* Camera Controls - Bottom Center (Desktop) / Bottom Right (Mobile) */}
-        {sceneEnabled && !modelsLoading && (
+        {/* Camera Controls - Desktop Only (Mobile uses touch controls) */}
+        {sceneEnabled && !modelsLoading && !deviceCapabilities.isMobile && (
           <div 
-            className={deviceCapabilities.isMobile 
-              ? "fixed right-4 bottom-6 z-40" 
-              : "fixed bottom-6 z-40 camera-controls-desktop -translate-x-1/2"}
-            style={deviceCapabilities.isMobile ? {} : {}}
+            className="fixed bottom-6 z-40 camera-controls-desktop -translate-x-1/2"
           >
-            <div className={deviceCapabilities.isMobile
-              ? "bg-white/90 backdrop-blur-md rounded-lg shadow-xl border border-black/5 p-2 flex flex-col gap-2"
-              : "bg-white/90 backdrop-blur-md rounded-lg shadow-xl border border-black/5 p-3"}>
-              <div className={deviceCapabilities.isMobile ? "flex flex-col gap-2" : "grid grid-cols-5 gap-2"}>
+            <div className="bg-white/90 backdrop-blur-md rounded-lg shadow-xl border border-black/5 p-3">
+              <div className="grid grid-cols-5 gap-2">
                 <button
                   className="rounded-lg border border-black/10 bg-white px-2 py-1.5 text-xs shadow-sm hover:shadow transition flex items-center justify-center"
                   onClick={handleRotateLeft}

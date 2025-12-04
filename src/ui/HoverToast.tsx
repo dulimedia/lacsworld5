@@ -61,9 +61,7 @@ export const HoverToast: React.FC<HoverToastProps> = ({ className = '' }) => {
         ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}
         ${className}
       `}
-      style={{
-        left: 'calc(var(--scene-left) + 12px)'
-      }}
+      style={{ left: 12 }}
     >
       <div className="text-sm font-semibold text-gray-900">
         {hoveredUnit.unit_name}
