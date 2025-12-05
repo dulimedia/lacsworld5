@@ -56,7 +56,7 @@ const AVAILABLE_FLOORPLANS = [
   'LACS_T-430_M1_Color_Compressed_page_1.png',
   'LACS_T-450_M1_Color_Compressed_page_1.png',
   // Maryland and Fifth Street Floorplans (PNG) - Recovered from subdirectories
-  'MG Floorplan-1.png',
+  'MG_Full.png',
   'M1Floor_LACS-1.png',
   'M2Floor_LACS-1.png',
   'M3Floor_LACS-1.png',
@@ -169,10 +169,10 @@ const TOWER_UNIT_FLOOR_MAPPINGS: { [key: string]: { floorFloorplan: string; indi
 // Maryland Building unit to floor mapping
 const MARYLAND_UNIT_FLOOR_MAPPINGS: { [key: string]: { floorFloorplan: string; individualFloorplan?: string } } = {
   // Ground Floor Maryland Units
-  'm20': { floorFloorplan: 'MG Floorplan-1.png' },
-  'm40': { floorFloorplan: 'MG Floorplan-1.png' },
-  'm45': { floorFloorplan: 'MG Floorplan-1.png' },
-  'm50': { floorFloorplan: 'MG Floorplan-1.png' },
+  'm20': { floorFloorplan: 'MG_Full.png' },
+  'm40': { floorFloorplan: 'MG_Full.png' },
+  'm45': { floorFloorplan: 'MG_Full.png' },
+  'm50': { floorFloorplan: 'MG_Full.png' },
 
   // First Floor Maryland Units - using M1Floor
   'm120': { floorFloorplan: 'M1Floor_LACS-1.png', individualFloorplan: 'm120.png' },
@@ -259,18 +259,18 @@ const FIFTH_STREET_UNIT_FLOOR_MAPPINGS: { [key: string]: { floorFloorplan: strin
 
 // Special mappings for units that don't follow normal patterns
 const SPECIAL_MAPPINGS: { [key: string]: string } = {
-  'et lab': 'MG Floorplan-1.png',
-  'etlab': 'MG Floorplan-1.png',
-  'studio o.m.': 'MG Floorplan-1.png',
-  'studio o.m': 'MG Floorplan-1.png',
-  'studioom': 'MG Floorplan-1.png',
+  'et lab': 'MG_Full.png',
+  'etlab': 'MG_Full.png',
+  'studio o.m.': 'MG_Full.png',
+  'studio o.m': 'MG_Full.png',
+  'studioom': 'MG_Full.png',
   'club 76': 'FG_Full.png',
   'club76': 'FG_Full.png',
   // Maryland Building Ground Floor units use the mg floorplan
-  'm20': 'MG Floorplan-1.png',
-  'm40': 'MG Floorplan-1.png',
-  'm45': 'MG Floorplan-1.png',
-  'm50': 'MG Floorplan-1.png',
+  'm20': 'MG_Full.png',
+  'm40': 'MG_Full.png',
+  'm45': 'MG_Full.png',
+  'm50': 'MG_Full.png',
   // First Street Building 1st floor units use F1_Floorplan.png fallback
   'f110': 'F1_Full.png',
   'f110cr': 'F1_Full.png',
