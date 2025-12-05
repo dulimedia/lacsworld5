@@ -52,7 +52,31 @@ export function SuiteDetailsTab() {
     }
   };
 
+  const getSecondaryFloorplanUrl = () => {
+    if (!displayUnit || !displayUnit.unit_name) {
+      return null;
+    }
+    
+    // For tower units, show the opposite view as secondary
+    if (isTower) {
+      if (showIndividualFloorplan && hasIndividualFloorplan) {
+        // If showing individual, secondary is floor-level view
+        const floorFloorplan = getTowerUnitFloorFloorplan(displayUnit.unit_name);
+        const rawUrl = floorFloorplan ? `floorplans/converted/${floorFloorplan}` : null;
+        return rawUrl ? encodeFloorplanUrl(rawUrl) : null;
+      } else if (hasIndividualFloorplan) {
+        // If showing floor-level, secondary is individual view
+        const individualFloorplan = getTowerUnitIndividualFloorplan(displayUnit.unit_name);
+        const rawUrl = individualFloorplan ? `floorplans/converted/${individualFloorplan}` : null;
+        return rawUrl ? encodeFloorplanUrl(rawUrl) : null;
+      }
+    }
+    
+    return null;
+  };
+
   const currentFloorplanUrl = getFloorplanUrl();
+  const secondaryFloorplanUrl = getSecondaryFloorplanUrl();
 
   const toggleFloorplanView = () => {
     setShowIndividualFloorplan(prev => !prev);
@@ -61,6 +85,15 @@ export function SuiteDetailsTab() {
   const handleFloorPlanClick = () => {
     if (currentFloorplanUrl && displayUnit) {
       openFloorplan(currentFloorplanUrl, displayUnit.unit_name, displayUnit);
+    }
+  };
+
+  const handleSecondaryFloorPlanClick = () => {
+    if (secondaryFloorplanUrl && displayUnit) {
+      const secondaryTitle = isTower && showIndividualFloorplan 
+        ? `${displayUnit.unit_name} - Floor Layout`
+        : `${displayUnit.unit_name} - Unit Layout`;
+      openFloorplan(secondaryFloorplanUrl, secondaryTitle, displayUnit);
     }
   };
 
@@ -181,20 +214,44 @@ export function SuiteDetailsTab() {
         )}
 
         {currentFloorplanUrl && (
-          <div className="relative group cursor-pointer" onClick={handleFloorPlanClick}>
-            <div className="relative rounded-lg overflow-hidden border border-black/10 bg-gray-50">
-              <img 
-                src={currentFloorplanUrl} 
-                alt={`${displayUnit.unit_name} Floor Plan Preview`}
-                className="w-full h-48 object-contain"
-              />
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white rounded-full p-3 shadow-lg">
-                  <Maximize2 size={24} className="text-gray-700" />
+          <div className="space-y-4">
+            <div className="relative group cursor-pointer" onClick={handleFloorPlanClick}>
+              <div className="relative rounded-lg overflow-hidden border border-black/10 bg-gray-50">
+                <img 
+                  src={currentFloorplanUrl} 
+                  alt={`${displayUnit.unit_name} Floor Plan Preview`}
+                  className="w-full h-48 object-contain"
+                />
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white rounded-full p-3 shadow-lg">
+                    <Maximize2 size={24} className="text-gray-700" />
+                  </div>
                 </div>
               </div>
+              <div className="text-xs text-center text-gray-500 mt-2">
+                {isTower && showIndividualFloorplan ? 'Unit Layout' : 'Floor Plan'} - Click to expand
+              </div>
             </div>
-            <div className="text-xs text-center text-gray-500 mt-2">Click to expand floor plan</div>
+
+            {secondaryFloorplanUrl && (
+              <div className="relative group cursor-pointer" onClick={handleSecondaryFloorPlanClick}>
+                <div className="relative rounded-lg overflow-hidden border border-black/10 bg-gray-50">
+                  <img 
+                    src={secondaryFloorplanUrl} 
+                    alt={`${displayUnit.unit_name} Secondary Floor Plan Preview`}
+                    className="w-full h-40 object-contain"
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white rounded-full p-2 shadow-lg">
+                      <Maximize2 size={20} className="text-gray-700" />
+                    </div>
+                  </div>
+                </div>
+                <div className="text-xs text-center text-gray-500 mt-2">
+                  {isTower && showIndividualFloorplan ? 'Full Floor Layout' : 'Individual Unit'} - Click to expand
+                </div>
+              </div>
+            )}
           </div>
         )}
 

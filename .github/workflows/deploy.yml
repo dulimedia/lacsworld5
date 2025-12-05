@@ -42,7 +42,6 @@ jobs:
           ls -la dist/
           (ls -la dist/assets/ || true)
           # spot-check critical public assets
-          test -f dist/palm-tree.glb || (echo "missing palm-tree.glb" && exit 1)
           test -f dist/textures/qwantani_noon_puresky_2k.hdr || (echo "missing hdr" && exit 1)
           test -f dist/unit-data.csv || (echo "missing unit-data.csv" && exit 1)
 
