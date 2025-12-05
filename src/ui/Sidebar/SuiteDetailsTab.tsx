@@ -53,8 +53,45 @@ export function SuiteDetailsTab() {
   };
 
   const getSecondaryFloorplanUrl = () => {
-    // Temporarily disable secondary floorplans to fix freeze issue
-    return null;
+    try {
+      console.log('🏗️ Computing secondary floorplan for:', displayUnit?.unit_name);
+      
+      if (!displayUnit || !displayUnit.unit_name) {
+        console.log('❌ No displayUnit or unit_name for secondary floorplan');
+        return null;
+      }
+      
+      // For tower units, show the opposite view as secondary
+      if (isTower) {
+        console.log('🏢 Tower unit detected, current showIndividualFloorplan:', showIndividualFloorplan, 'hasIndividualFloorplan:', hasIndividualFloorplan);
+        
+        if (showIndividualFloorplan && hasIndividualFloorplan) {
+          // If showing individual, secondary is floor-level view
+          console.log('🏗️ Getting floor-level floorplan as secondary');
+          const floorFloorplan = getTowerUnitFloorFloorplan(displayUnit.unit_name);
+          console.log('📄 Floor floorplan result:', floorFloorplan);
+          const rawUrl = floorFloorplan ? `floorplans/converted/${floorFloorplan}` : null;
+          const encodedUrl = rawUrl ? encodeFloorplanUrl(rawUrl) : null;
+          console.log('🔗 Secondary floor URL:', encodedUrl);
+          return encodedUrl;
+        } else if (hasIndividualFloorplan) {
+          // If showing floor-level, secondary is individual view
+          console.log('🏗️ Getting individual floorplan as secondary');
+          const individualFloorplan = getTowerUnitIndividualFloorplan(displayUnit.unit_name);
+          console.log('📄 Individual floorplan result:', individualFloorplan);
+          const rawUrl = individualFloorplan ? `floorplans/converted/${individualFloorplan}` : null;
+          const encodedUrl = rawUrl ? encodeFloorplanUrl(rawUrl) : null;
+          console.log('🔗 Secondary individual URL:', encodedUrl);
+          return encodedUrl;
+        }
+      }
+      
+      console.log('❌ No secondary floorplan available for this unit');
+      return null;
+    } catch (error) {
+      console.error('❌ Error getting secondary floorplan URL:', error);
+      return null;
+    }
   };
 
   const currentFloorplanUrl = getFloorplanUrl();
@@ -223,12 +260,15 @@ export function SuiteDetailsTab() {
                     alt={`${displayUnit.unit_name} Secondary Floor Plan Preview`}
                     className="w-full h-40 object-contain"
                     onError={(e) => {
-                      console.warn('Secondary floorplan image failed to load:', secondaryFloorplanUrl);
-                      e.currentTarget.style.display = 'none';
-                      e.currentTarget.parentElement?.parentElement?.remove();
+                      console.warn('❌ Secondary floorplan image failed to load:', secondaryFloorplanUrl);
+                      const container = e.currentTarget.parentElement?.parentElement;
+                      if (container) {
+                        container.style.display = 'none';
+                        console.log('🚫 Hidden secondary floorplan container due to load error');
+                      }
                     }}
                     onLoad={() => {
-                      console.log('Secondary floorplan loaded:', secondaryFloorplanUrl);
+                      console.log('✅ Secondary floorplan loaded successfully:', secondaryFloorplanUrl);
                     }}
                   />
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">

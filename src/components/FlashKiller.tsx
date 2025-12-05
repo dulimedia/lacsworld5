@@ -12,10 +12,12 @@ export const FlashKiller: React.FC<FlashKillerProps> = ({
   const [freezeFrameUrl, setFreezeFrameUrl] = useState<string | null>(null);
   const [showFreeze, setShowFreeze] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const failsafeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Capture canvas as freeze-frame when activated
   useEffect(() => {
     if (isActive) {
+      console.log('🧊 FlashKiller ACTIVATED - starting freeze-frame capture');
       try {
         // Find the R3F canvas element in DOM
         const canvasElement = document.querySelector('canvas') as HTMLCanvasElement;
@@ -39,10 +41,18 @@ export const FlashKiller: React.FC<FlashKillerProps> = ({
           // Hide freeze-frame after duration
           timeoutRef.current = setTimeout(() => {
             setShowFreeze(false);
-            console.log('✅ Flash prevention window ended');
+            console.log('✅ Flash prevention window ended (normal timeout)');
             // Clean up URL after animation
             setTimeout(() => setFreezeFrameUrl(null), 100);
           }, duration);
+
+          // FAILSAFE: Force disable after max 2 seconds to prevent infinite freeze
+          failsafeTimeoutRef.current = setTimeout(() => {
+            console.warn('⚠️ FlashKiller FAILSAFE: Force disabling freeze after 2 seconds');
+            setShowFreeze(false);
+            setFreezeFrameUrl(null);
+          }, 2000);
+          
         } else {
           console.warn('❌ No canvas found for freeze-frame capture');
         }
@@ -51,11 +61,19 @@ export const FlashKiller: React.FC<FlashKillerProps> = ({
         console.error('❌ Failed to capture freeze-frame (WebGL context may be lost):', error);
         setShowFreeze(false);
       }
+    } else {
+      // Clear freeze when not active
+      console.log('🔥 FlashKiller DEACTIVATED - clearing freeze-frame');
+      setShowFreeze(false);
+      setTimeout(() => setFreezeFrameUrl(null), 100);
     }
     
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
+      }
+      if (failsafeTimeoutRef.current) {
+        clearTimeout(failsafeTimeoutRef.current);
       }
     };
   }, [isActive, duration]);
