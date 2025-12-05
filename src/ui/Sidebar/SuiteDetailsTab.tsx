@@ -56,13 +56,37 @@ export function SuiteDetailsTab() {
       return null;
     }
     
-    if (isTower && showIndividualFloorplan && hasIndividualFloorplan) {
-      const individualFloorplan = getTowerUnitIndividualFloorplan(displayUnit.unit_name);
+    // For units with multiple floorplans (Tower, Maryland, Fifth Street)
+    if ((isTower || isMaryland || isFifthStreet) && showIndividualFloorplan && hasIndividualFloorplan) {
+      // Show individual unit floorplan
+      let individualFloorplan = null;
+      if (isTower) {
+        individualFloorplan = getTowerUnitIndividualFloorplan(displayUnit.unit_name);
+      } else if (isMaryland) {
+        individualFloorplan = getMarylandUnitIndividualFloorplan(displayUnit.unit_name);
+      } else if (isFifthStreet) {
+        individualFloorplan = getFifthStreetUnitIndividualFloorplan(displayUnit.unit_name);
+      }
       const rawUrl = individualFloorplan ? `floorplans/converted/${individualFloorplan}` : null;
       return rawUrl ? encodeFloorplanUrl(rawUrl) : null;
     } else {
-      const rawUrl = getIntelligentFloorplanUrl(displayUnit.unit_name, displayUnit);
-      return rawUrl ? encodeFloorplanUrl(rawUrl) : null;
+      // For multi-floorplan units, show floor-level floorplan by default
+      if (isTower || isMaryland || isFifthStreet) {
+        let floorFloorplan = null;
+        if (isTower) {
+          floorFloorplan = getTowerUnitFloorFloorplan(displayUnit.unit_name);
+        } else if (isMaryland) {
+          floorFloorplan = getMarylandUnitFloorFloorplan(displayUnit.unit_name);
+        } else if (isFifthStreet) {
+          floorFloorplan = getFifthStreetUnitFloorFloorplan(displayUnit.unit_name);
+        }
+        const rawUrl = floorFloorplan ? `floorplans/converted/${floorFloorplan}` : null;
+        return rawUrl ? encodeFloorplanUrl(rawUrl) : null;
+      } else {
+        // Fallback to intelligent matching for other units
+        const rawUrl = getIntelligentFloorplanUrl(displayUnit.unit_name, displayUnit);
+        return rawUrl ? encodeFloorplanUrl(rawUrl) : null;
+      }
     }
   };
 
